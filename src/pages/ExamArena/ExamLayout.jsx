@@ -1,0 +1,969 @@
+import React, { useState, useEffect } from 'react';
+import {
+  FileText, HelpCircle, Calculator, Bookmark, LogOut,
+  ChevronLeft, ChevronRight, Pause, Flag, ShieldAlert, HeadphonesIcon, ArrowLeft,
+  PanelLeftClose, PanelLeftOpen, Clock, AlertCircle
+} from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import DraggableCalculator from '../../components/exam/DraggableCalculator';
+import HighlightableText from '../../components/exam/HighlightableText';
+import ScoreReportModal from '../../components/exam/ScoreReportModal';
+import MathText from '../../components/MathText';
+import './ExamLayout.css';
+
+export default function ExamLayout({ user, testId, customConfig, onExit }) {
+  const [questions, setQuestions] = useState([]);
+  const [testInfo, setTestInfo] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [answers, setAnswers] = useState({}); // { questionId: selectedOptionIndex }
+  const [bookmarks, setBookmarks] = useState(new Set()); // Set of questionIds
+
+  const [timeLeft, setTimeLeft] = useState(180 * 60); // Default 180 mins
+  const [isPaused, setIsPaused] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [examResult, setExamResult] = useState(null);
+
+  // Modals state
+  const [showCalculator, setShowCalculator] = useState(false);
+  const [showBookmarks, setShowBookmarks] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  
+  const [showErrorReport, setShowErrorReport] = useState(false);
+  const [reportMessage, setReportMessage] = useState('');
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
+  // Pause limits state
+  const [pauseCount, setPauseCount] = useState(0);
+  const [pauseTimeLeft, setPauseTimeLeft] = useState(5 * 60); // 5 minutes max
+
+  // A-Level Specific State
+  const [currentPaperIndex, setCurrentPaperIndex] = useState(0);
+  const [isALevelBreak, setIsALevelBreak] = useState(false);
+  const [allALevelAnswers, setAllALevelAnswers] = useState({});
+  const [allALevelQuestions, setAllALevelQuestions] = useState([]);
+  const [isAiGrading, setIsAiGrading] = useState(false);
+
+  // Fetch test and questions
+  useEffect(() => {
+    async function loadData() {
+      try {
+        setLoading(true);
+
+        // Check if there's a recovered result from a page refresh
+        const recoveredStr = localStorage.getItem('recovered_exam_result');
+        if (recoveredStr) {
+          try {
+            const recovered = JSON.parse(recoveredStr);
+            if (recovered.subject.id === testId || (customConfig && recovered.subject.id === null)) {
+              setExamResult(recovered);
+              setLoading(false);
+              localStorage.removeItem('recovered_exam_result');
+              return;
+            }
+          } catch (e) {
+            // ignore
+          }
+          localStorage.removeItem('recovered_exam_result');
+        }
+
+        if (customConfig && customConfig.isALevel) {
+          const currentPaper = customConfig.papers[currentPaperIndex];
+          setTestInfo(currentPaper);
+          setTimeLeft(currentPaper.duration_minutes * 60);
+          const { data: qData } = await supabase.from('questions').select('*').eq('test_id', currentPaper.id).order('order_num', { ascending: true });
+          if (qData) setQuestions(qData);
+        } else if (customConfig) {
+          setTestInfo({ subject: customConfig.subject, duration_minutes: customConfig.duration_minutes });
+          setTimeLeft(customConfig.duration_minutes * 60);
+
+          const { data: qData } = await supabase
+            .from('questions')
+            .select('*')
+            .in('id', customConfig.questionIds);
+
+          if (qData) setQuestions(qData);
+        } else if (testId) {
+          // Fetch test info
+          const { data: testData } = await supabase
+            .from('mock_tests')
+            .select('*')
+            .eq('id', testId)
+            .single();
+
+          if (testData) {
+            setTestInfo(testData);
+            setTimeLeft(testData.duration_minutes * 60);
+          }
+
+          // Fetch questions
+          const { data: qData } = await supabase
+            .from('questions')
+            .select('*')
+            .eq('test_id', testId)
+            .order('order_num', { ascending: true });
+
+          if (qData) {
+            setQuestions(qData);
+          }
+        }
+
+        // Fetch user's bookmarks
+        if (user) {
+          const { data: bData } = await supabase
+            .from('bookmarks')
+            .select('question_id')
+            .eq('user_id', user.id);
+          if (bData) {
+            setBookmarks(new Set(bData.map(b => b.question_id)));
+          }
+        }
+      } catch (error) {
+        console.error("Error loading test", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (testId || customConfig) loadData();
+  }, [testId, customConfig, user?.id, currentPaperIndex]);
+
+  // Timer logic for Exam
+  useEffect(() => {
+    if (loading || isPaused || submitting || timeLeft <= 0) return;
+
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          handleSubmit();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [loading, isPaused, submitting, timeLeft]);
+
+  // Timer logic for Pause limit
+  useEffect(() => {
+    if (!isPaused || submitting || pauseTimeLeft <= 0) return;
+
+    const pauseTimer = setInterval(() => {
+      setPauseTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(pauseTimer);
+          setIsPaused(false);
+          alert("Pauza vaqti tugadi (5 daqiqa). Imtihon avtomatik davom etadi.");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(pauseTimer);
+  }, [isPaused, submitting, pauseTimeLeft]);
+
+  // Handle page refresh/unload
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (submitting || examResult) return;
+
+      let score = 0;
+      questions.forEach(q => {
+        if (q.question_type === 'written') {
+          const userAns = (answers[q.id] || '').toString().trim().toLowerCase();
+          const correctAns = (q.correct_answer_text || '').toString().trim().toLowerCase();
+          if (userAns === correctAns && correctAns !== '') {
+            score += q.points || 1;
+          }
+        } else {
+          if (answers[q.id] === q.correct_option_index) {
+            score += q.points || 1;
+          }
+        }
+      });
+
+      const timeSpentSecs = (testInfo ? testInfo.duration_minutes * 60 : 180 * 60) - timeLeft;
+      const resultObj = {
+        subject: { name: testInfo?.subject || 'Test', id: testId || null, system: testInfo?.exam_system || 'dtm' },
+        questions: questions.map(q => ({
+          ...q,
+          correct: q.options ? q.options[q.correct_option_index] : ''
+        })),
+        answers: Object.fromEntries(
+          Object.entries(answers).map(([qid, optIdx]) => {
+            const q = questions.find(item => item.id === qid);
+            return [qid, q && q.options ? q.options[optIdx] : null];
+          })
+        ),
+        correctCount: score,
+        earnedBall: score,
+        maxBall: questions.reduce((sum, q) => sum + (q.points || 1), 0),
+        timeSpent: formatTime(timeSpentSecs)
+      };
+
+      localStorage.setItem('recovered_exam_result', JSON.stringify(resultObj));
+
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [submitting, examResult, answers, questions, testId, user, testInfo, timeLeft]);
+
+
+
+  const formatTime = (seconds) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const handleSelectOption = (questionId, optionIndex) => {
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: optionIndex
+    }));
+  };
+
+  const toggleBookmark = async (questionId) => {
+    const isBookmarked = bookmarks.has(questionId);
+
+    // Optimistic UI update
+    setBookmarks(prev => {
+      const newSet = new Set(prev);
+      if (isBookmarked) newSet.delete(questionId);
+      else newSet.add(questionId);
+      return newSet;
+    });
+
+    try {
+      if (isBookmarked) {
+        await supabase.from('bookmarks').delete().match({ user_id: user.id, question_id: questionId });
+      } else {
+        await supabase.from('bookmarks').insert([{ user_id: user.id, question_id: questionId }]);
+      }
+    } catch (err) {
+      console.error("Failed to toggle bookmark", err);
+      // Revert on error
+      setBookmarks(prev => {
+        const newSet = new Set(prev);
+        if (isBookmarked) newSet.add(questionId);
+        else newSet.delete(questionId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (submitting || isAiGrading) return;
+
+    if (customConfig && customConfig.isALevel) {
+      // Save current paper's data
+      const newAllAnswers = { ...allALevelAnswers, ...answers };
+      const newAllQuestions = [...allALevelQuestions, ...questions];
+
+      setAllALevelAnswers(newAllAnswers);
+      setAllALevelQuestions(newAllQuestions);
+
+      if (currentPaperIndex < customConfig.papers.length - 1) {
+        setIsALevelBreak(true);
+        return; // wait for user to continue
+      } else {
+        // Last paper! Grade everything
+        setIsAiGrading(true);
+        let finalScore = 0;
+        let finalAnswers = { ...newAllAnswers };
+
+        for (const q of newAllQuestions) {
+          if (q.question_type === 'written') {
+            const userAns = (finalAnswers[q.id] || '').toString().trim();
+            const correctAns = (q.correct_answer_text || '').toString().trim();
+            if (userAns !== '' && correctAns !== '') {
+              try {
+                const res = await fetch('/api/grade-answer', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userAnswer: userAns, correctAnswer: correctAns, questionText: q.text })
+                });
+                const data = await res.json();
+                if (data.isCorrect) finalScore += q.points || 1;
+              } catch (e) {
+                console.error("AI grading failed", e);
+                // Fallback to strict match
+                if (userAns.toLowerCase() === correctAns.toLowerCase()) finalScore += q.points || 1;
+              }
+            }
+          } else {
+            if (finalAnswers[q.id] === q.correct_option_index) {
+              finalScore += q.points || 1;
+            }
+          }
+        }
+
+        try {
+          // You could optionally insert multiple sessions, but we'll insert one for the overall config
+          const resultObj = {
+            subject: { name: `A-Level Mathematics (${customConfig.level}) - ${customConfig.combo}`, id: customConfig.papers[0].id },
+            questions: newAllQuestions.map(q => ({
+              ...q,
+              correct: q.question_type === 'written' ? q.correct_answer_text : (q.options ? q.options[q.correct_option_index] : '')
+            })),
+            answers: Object.fromEntries(
+              Object.entries(finalAnswers).map(([qid, ansVal]) => {
+                const q = newAllQuestions.find(item => item.id === qid);
+                if (!q) return [qid, null];
+                if (q.question_type === 'written') return [qid, ansVal];
+                return [qid, q.options ? q.options[ansVal] : null];
+              })
+            ),
+            correctCount: finalScore,
+            earnedBall: finalScore,
+            maxBall: newAllQuestions.reduce((sum, q) => sum + (q.points || 1), 0),
+            timeSpent: "A-Level Time"
+          };
+          setExamResult(resultObj);
+          setShowReviewModal(false);
+        } catch (error) {
+          alert('Xatolik yuz berdi');
+        } finally {
+          setIsAiGrading(false);
+        }
+        return;
+      }
+    }
+
+    // Normal non-ALevel submit
+    setSubmitting(true);
+    let score = 0;
+    questions.forEach(q => {
+      if (q.question_type === 'written') {
+        const userAns = (answers[q.id] || '').toString().trim().toLowerCase();
+        const correctAnsStr = (q.correct_answer_text || '').toString().trim().toLowerCase();
+        const correctAnswers = correctAnsStr.split(',').map(a => a.trim()).filter(a => a !== '');
+        if (correctAnswers.includes(userAns) && userAns !== '') {
+          score += q.points || 1;
+        }
+      } else {
+        if (answers[q.id] === q.correct_option_index) {
+          score += q.points || 1;
+        }
+      }
+    });
+
+    try {
+      if (testId) {
+        await supabase.from('test_sessions').insert([{ user_id: user.id, test_id: testId, score: score, completed_at: new Date().toISOString() }]);
+      }
+      setShowReviewModal(false);
+
+      const timeSpentSecs = (testInfo ? testInfo.duration_minutes * 60 : 180 * 60) - timeLeft;
+      const resultObj = {
+        subject: { name: testInfo?.subject || 'Test', id: testId, system: testInfo?.exam_system || 'dtm' },
+        questions: questions.map(q => ({
+          ...q,
+          correct: q.question_type === 'written' ? q.correct_answer_text : (q.options ? q.options[q.correct_option_index] : '')
+        })),
+        answers: Object.fromEntries(
+          Object.entries(answers).map(([qid, ansVal]) => {
+            const q = questions.find(item => item.id === qid);
+            if (!q) return [qid, null];
+            if (q.question_type === 'written') return [qid, ansVal];
+            return [qid, q.options ? q.options[ansVal] : null];
+          })
+        ),
+        correctCount: score,
+        earnedBall: score,
+        maxBall: questions.reduce((sum, q) => sum + (q.points || 1), 0),
+        timeSpent: formatTime(timeSpentSecs)
+      };
+
+      setExamResult(resultObj);
+    } catch (error) {
+      console.error(error);
+      alert('Xatolik yuz berdi');
+      setSubmitting(false);
+    }
+  };
+
+  const submitErrorReport = async () => {
+    if (!reportMessage.trim()) return;
+    setIsSubmittingReport(true);
+    try {
+      const q = questions[currentIndex];
+      const { error } = await supabase.from('error_reports').insert([{
+        test_id: testId || testInfo?.id || null,
+        question_id: q ? q.id : null,
+        user_id: user?.id,
+        message: reportMessage.trim()
+      }]);
+      if (error) throw error;
+      alert("Xabaringiz yuborildi. Rahmat!");
+      setShowErrorReport(false);
+      setReportMessage('');
+    } catch (err) {
+      console.error(err);
+      alert("Xatolik yuz berdi: " + err.message);
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
+  const jumpToQuestion = (index) => {
+    setCurrentIndex(index);
+    setShowBookmarks(false);
+  };
+
+  if (loading) {
+    return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.03)' }}>Yuklanmoqda...</div>;
+  }
+
+  if (isAiGrading) {
+    return <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.03)' }}>
+      <h2 style={{ color: '#0F172A', marginBottom: '8px' }}>AI tekshirmoqda...</h2>
+      <p style={{ color: 'rgba(15, 23, 42, 0.6)' }}>Yozma javoblaringiz sun'iy intellekt tomonidan baholanmoqda.</p>
+    </div>;
+  }
+
+  if (isALevelBreak) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#F8FAFC' }}>
+        <h2 style={{ fontSize: '32px', color: '#0F172A', marginBottom: '16px' }}>Tanaffus vaqti</h2>
+        <p style={{ fontSize: '18px', color: '#334155', maxWidth: '500px', textAlign: 'center', marginBottom: '32px' }}>
+          Siz {customConfig?.papers[currentPaperIndex]?.title} qismini yakunladingiz. Keyingi qismga o'tishga tayyor bo'lganingizda pastdagi tugmani bosing.
+        </p>
+        <button
+          onClick={() => {
+            setAnswers({}); // clear local answers for next paper
+            setCurrentIndex(0);
+            setIsALevelBreak(false);
+            setCurrentPaperIndex(prev => prev + 1);
+          }}
+          style={{ padding: '16px 32px', background: '#2563EB', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold' }}
+        >
+          Keyingi qismga o'tish
+        </button>
+      </div>
+    );
+  }
+
+  const currentQ = questions[currentIndex];
+  if (!currentQ) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.03)', gap: '16px' }}>
+        <p style={{ fontSize: '18px', color: '#0F172A', fontWeight: '500', margin: 0 }}>Bu test uchun savollar topilmadi.</p>
+        <button onClick={onExit} style={{ padding: '12px 24px', background: '#2563EB', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <ArrowLeft size={18} /> Ortga qaytish
+        </button>
+      </div>
+    );
+  }
+
+  if (examResult) {
+    return (
+      <ScoreReportModal
+        result={examResult}
+        onRestart={onExit} // Go back to workspace
+        onExit={onExit}
+        user={user}
+      />
+    );
+  }
+
+  const progressPercent = ((Object.keys(answers).length / questions.length) * 100).toFixed(0);
+  const timerPercent = testInfo ? ((timeLeft / (testInfo.duration_minutes * 60)) * 100) : 100;
+
+  return (
+    <div className="exam-container">
+
+
+      {/* Left Sidebar */}
+      <aside className={`exam-sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
+        <div className="exam-logo-area">
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              cursor: 'pointer',
+              justifyContent: isSidebarCollapsed ? 'center' : 'flex-start'
+            }}
+          >
+            <img
+              src="/logo-189.png"
+              alt="189 Logo"
+              style={{ height: '38px', width: 'auto', objectFit: 'contain' }}
+            />
+            {!isSidebarCollapsed && (
+              <span style={{ fontSize: '24px', fontWeight: '900', letterSpacing: '-0.8px', color: '#0F172A' }}>
+                PREP
+              </span>
+            )}
+          </div>
+        </div>
+        <nav className="exam-nav">
+          <button className="exam-nav-item active" title={isSidebarCollapsed ? 'Imtihon' : ''}>
+            <FileText size={18} /> {!isSidebarCollapsed && 'Imtihon'}
+          </button>
+          
+          <button className={`exam-nav-item ${showErrorReport ? 'active' : ''}`} title={isSidebarCollapsed ? 'Xatolik haqida' : ''} onClick={() => setShowErrorReport(true)}>
+            <HelpCircle size={18} /> {!isSidebarCollapsed && 'Xatolik haqida'}
+          </button>
+
+          {(testInfo?.subject?.toLowerCase().includes('matematika') || testInfo?.subject?.toLowerCase().includes('math')) && (
+            <button className={`exam-nav-item ${showCalculator ? 'active' : ''}`} title={isSidebarCollapsed ? 'Hisoblagich' : ''} onClick={() => setShowCalculator(!showCalculator)}>
+              <Calculator size={18} /> {!isSidebarCollapsed && 'Hisoblagich'}
+            </button>
+          )}
+
+          <button className={`exam-nav-item ${showBookmarks ? 'active' : ''}`} title={isSidebarCollapsed ? 'Eslatma' : ''} onClick={() => setShowBookmarks(!showBookmarks)}>
+            <Bookmark size={18} /> {!isSidebarCollapsed && 'Eslatma'}
+          </button>
+        </nav>
+        <div className="exam-sidebar-bottom">
+          <button className="exam-nav-item text-red" onClick={onExit} style={{ color: '#0F172A', width: '100%' }} title={isSidebarCollapsed ? 'Chiqish' : ''}>
+            <LogOut size={18} /> {!isSidebarCollapsed && 'Chiqish'}
+          </button>
+        </div>
+
+        {/* Collapse Toggle Button */}
+        <button
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          className="exam-sidebar-collapse-btn"
+          title={isSidebarCollapsed ? 'Panelni ochish' : 'Panelni yopish'}
+        >
+          {isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+        </button>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="exam-main">
+        {/* Header */}
+        <header className="exam-header">
+          <div className="exam-header-title">
+            {testInfo?.subject || "Fan nomi"} <span className="exam-header-subtitle">| 10-sinf</span>
+          </div>
+          <div className="exam-header-actions">
+            <div className="exam-user-profile">
+              <div className="exam-avatar">
+                {((user?.full_name || user?.email || 'U').charAt(0)).toUpperCase()}
+              </div>
+              {user?.full_name || (user?.email ? user.email.split('@')[0] : 'Foydalanuvchi')}
+            </div>
+          </div>
+        </header>
+
+        {/* Question Area */}
+        <div className="exam-content-area" style={testInfo?.pdf_url ? { display: 'flex', flexDirection: window.innerWidth < 768 ? 'column' : 'row', gap: '24px', height: 'calc(100vh - 80px)' } : {}}>
+
+          {testInfo?.pdf_url && (
+            <div style={{ flex: '1.5', height: '100%', borderRadius: '16px', overflow: 'hidden', border: '1px solid rgba(15,23,42,0.1)' }}>
+              <iframe src={testInfo.pdf_url} style={{ width: '100%', height: '100%', border: 'none' }} title="Exam Paper" />
+            </div>
+          )}
+
+          <section className="exam-question-section" style={testInfo?.pdf_url ? { flex: '1', height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', padding: '16px' } : {}}>
+
+            {testInfo?.pdf_url ? (
+              // PDF Mode: Show all inputs in a scrolling list
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ position: 'sticky', top: 0, background: 'white', padding: '12px 0', zIndex: 10, borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ fontSize: '18px', color: '#0F172A', margin: 0 }}>
+                    Javoblar varaqasi
+                  </h3>
+                  <div style={{ background: '#EFF6FF', padding: '6px 12px', borderRadius: '8px', color: '#2563EB', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Clock size={16} />
+                    {formatTime(timeLeft)}
+                  </div>
+                </div>
+                {questions.map((q, idx) => (
+                  <div key={q.id} style={{ background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                    <div style={{ fontWeight: 'bold', color: '#0F172A', marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
+                      {q.text && q.text.replace(/<[^>]+>/g, '').trim() !== '' ? (
+                        <div dangerouslySetInnerHTML={{ __html: q.text }} style={{ margin: 0, padding: 0 }} className="exam-q-label-custom" />
+                      ) : (
+                        `Savol ${idx + 1}`
+                      )}
+                    </div>
+                    {q.question_type === 'written' ? (
+                      <textarea
+                        placeholder="Javobingizni shu yerga kiriting..."
+                        value={answers[q.id] || ''}
+                        onChange={(e) => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                        style={{ width: '100%', minHeight: '80px', padding: '12px', borderRadius: '8px', border: '1px solid rgba(15, 23, 42, 0.2)', fontSize: '15px', resize: 'vertical' }}
+                      />
+                    ) : (
+                      <div className="exam-options" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {q.options && Array.isArray(q.options) && q.options.map((opt, oIdx) => {
+                          const isSelected = answers[q.id] === oIdx;
+                          return (
+                            <button
+                              key={oIdx}
+                              onClick={() => handleSelectOption(q.id, oIdx)}
+                              style={{
+                                padding: '8px 16px', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', border: isSelected ? '2px solid #2563EB' : '1px solid #CBD5E1', background: isSelected ? '#EFF6FF' : 'white', color: isSelected ? '#2563EB' : '#334155'
+                              }}
+                            >
+                              {String.fromCharCode(65 + oIdx)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <button
+                  onClick={() => setShowReviewModal(true)}
+                  style={{ marginTop: '24px', padding: '16px', background: '#16A34A', color: 'white', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  Imtihonni yakunlash
+                </button>
+              </div>
+            ) : (
+              // Standard Mode: One question at a time
+              <>
+                {/* Progress Row */}
+                <div className="exam-progress-row">
+                  <span className="exam-q-count">{currentIndex + 1} <span className="exam-q-total">/ {questions.length} savol</span></span>
+                  <div className="exam-progress-dots">
+                    {questions.slice(Math.max(0, currentIndex - 3), currentIndex + 5).map((q, i) => {
+                      const actualIndex = questions.indexOf(q);
+                      const isCurrent = actualIndex === currentIndex;
+                      const isAnswered = answers[q.id] !== undefined;
+                      return (
+                        <div key={q.id} className={`progress-dot ${isCurrent ? 'current' : isAnswered ? 'answered' : ''}`}>
+                          {actualIndex + 1}
+                        </div>
+                      );
+                    })}
+                    {currentIndex < questions.length - 5 && <span style={{ color: 'rgba(15, 23, 42, 0.4)', letterSpacing: '2px' }}>...</span>}
+                    <div className="progress-dot">{questions.length}</div>
+                  </div>
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(15, 23, 42, 0.5)' }}>{progressPercent}%</span>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="exam-progress-bar-container">
+                  <div className="exam-progress-bar">
+                    <div className="exam-progress-fill" style={{ width: `${progressPercent}%` }}></div>
+                  </div>
+                </div>
+
+                {/* Question Card */}
+                <div className="exam-question-card">
+                  <div className="exam-q-header">
+                    <div className="exam-q-tags">
+                      <span className="exam-tag-q">Q{currentIndex + 1}</span>
+                      <span className="exam-tag-type">{currentQ.question_type === 'written' ? 'Yozma javob' : 'Bir javobli'}</span>
+                    </div>
+                    <button className="exam-bookmark-btn" onClick={() => toggleBookmark(currentQ.id)}>
+                      <Bookmark size={16} fill={bookmarks.has(currentQ.id) ? "currentColor" : "none"} />
+                      Eslatmaga qo'shish
+                    </button>
+                  </div>
+
+                  <HighlightableText text={currentQ.text} id={currentQ.id} className="exam-q-text" />
+
+                  {currentQ.image_url && (
+                    <img src={currentQ.image_url} alt="Savol rasmi" className="exam-q-image" />
+                  )}
+
+                  {currentQ.question_type === 'written' ? (
+                    <div className="exam-written-answer">
+                      <textarea
+                        placeholder="Javobingizni shu yerga kiriting..."
+                        value={answers[currentQ.id] || ''}
+                        onChange={(e) => setAnswers(prev => ({ ...prev, [currentQ.id]: e.target.value }))}
+                        style={{ width: '100%', minHeight: '100px', padding: '16px', borderRadius: '12px', border: '1px solid rgba(15, 23, 42, 0.2)', fontSize: '16px', color: '#0F172A', resize: 'vertical' }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="exam-options">
+                      {currentQ.options && Array.isArray(currentQ.options) && currentQ.options.map((opt, idx) => {
+                        const letter = String.fromCharCode(65 + idx);
+                        const isSelected = answers[currentQ.id] === idx;
+                        return (
+                          <div
+                            key={idx}
+                            className={`exam-option ${isSelected ? 'selected' : ''}`}
+                            onClick={() => handleSelectOption(currentQ.id, idx)}
+                          >
+                            <div className="exam-radio">
+                              <div className="exam-radio-inner"></div>
+                            </div>
+                            <span className="exam-option-label">{letter}.</span>
+                            <div className="exam-option-text">
+                              <MathText>{opt}</MathText>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="exam-controls">
+                  <button
+                    className="exam-btn-outline"
+                    disabled={currentIndex === 0}
+                    onClick={() => setCurrentIndex(prev => prev - 1)}
+                  >
+                    <ChevronLeft size={16} /> Oldingi savol
+                  </button>
+
+                  <button className="exam-btn-outline" onClick={() => toggleBookmark(currentQ.id)} style={{ color: '#2563EB', borderColor: 'rgba(37, 99, 235, 0.2)', background: 'rgba(37, 99, 235, 0.08)' }}>
+                    <Bookmark size={16} fill={bookmarks.has(currentQ.id) ? "currentColor" : "none"} /> Eslatmaga qo'shish
+                  </button>
+
+                  <button 
+                    className="btn-submit-exam mobile-only-submit"
+                    onClick={() => setShowReviewModal(true)} 
+                    disabled={submitting}
+                    style={{ background: '#10B981', color: 'white', borderColor: '#10B981' }}
+                  >
+                    <Flag size={16} /> Yakunlash
+                  </button>
+
+                  <button
+                    className="exam-btn-primary"
+                    disabled={currentIndex === questions.length - 1}
+                    onClick={() => setCurrentIndex(prev => prev + 1)}
+                  >
+                    Keyingi savol <ChevronRight size={16} />
+                  </button>
+                </div>
+              </>
+            )}
+          </section>
+
+          {/* Grid Section for standard mode */}
+          {!testInfo?.pdf_url && (
+            <aside className="exam-right-panel">
+              <div className="exam-grid-header">
+                <h3 className="exam-grid-title">Savollar jadvali</h3>
+              </div>
+              <div className="exam-timer-box">
+                <div className="timer-label">Qolgan vaqt</div>
+                <div className="timer-display">
+                  <div className="timer-time">{formatTime(timeLeft)}</div>
+                  <button
+                    className="timer-pause"
+                    onClick={() => {
+                      if (!isPaused && pauseCount >= 2) {
+                        alert("Siz pauza qilish limitini tugatdingiz (Max: 2 marta).");
+                        return;
+                      }
+                      if (!isPaused && pauseTimeLeft <= 0) {
+                        alert("Sizning pauza vaqtingiz tugagan (Max: 5 daqiqa).");
+                        return;
+                      }
+                      if (!isPaused) setPauseCount(prev => prev + 1);
+                      setIsPaused(!isPaused);
+                    }}
+                    disabled={!isPaused && (pauseCount >= 2 || pauseTimeLeft <= 0)}
+                    style={{ opacity: (!isPaused && (pauseCount >= 2 || pauseTimeLeft <= 0)) ? 0.5 : 1 }}
+                    title={`Pauza qolgan: ${2 - pauseCount} marta, ${Math.floor(pauseTimeLeft / 60)} daqiqa`}
+                  >
+                    <Pause size={18} fill={isPaused ? "currentColor" : "none"} />
+                  </button>
+                </div>
+                <div className="timer-progress">
+                  <div className="timer-progress-fill" style={{ width: `${timerPercent}%` }}></div>
+                </div>
+              </div>
+
+              <div className="exam-legend">
+                <div className="legend-item"><div className="legend-dot answered"></div> Javob berilgan</div>
+                <div className="legend-item"><div className="legend-dot current"></div> Joriy savol</div>
+                <div className="legend-item"><div className="legend-dot unanswered"></div> Javob berilmagan</div>
+                <div className="legend-item"><div className="legend-dot bookmarked"></div> Eslatma</div>
+              </div>
+
+              <div className="exam-grid-section">
+                <div className="exam-grid">
+                  {questions.map((q, i) => {
+                    const isCurrent = i === currentIndex;
+                    const isAnswered = answers[q.id] !== undefined;
+                    const isBookmarked = bookmarks.has(q.id);
+
+                    let classes = 'grid-btn';
+                    if (isCurrent) classes += ' current';
+                    else if (isAnswered) classes += ' answered';
+                    if (isBookmarked) classes += ' bookmarked';
+
+                    return (
+                      <button key={q.id} className={classes} onClick={() => setCurrentIndex(i)}>
+                        {i + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="exam-submit-section">
+                <button className="btn-submit-exam" onClick={() => setShowReviewModal(true)} disabled={submitting}>
+                  <Flag size={16} /> Imtihonni yakunlash
+                </button>
+              </div>
+            </aside>
+          )}
+        </div>
+
+        <footer className="exam-footer">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <ShieldAlert size={14} /> Imtihon davomida oynani yopish yoki sahifani tark etish natijalaringizga ta'sir qilishi mumkin.
+          </div>
+          <div className="exam-footer-right">
+            <HeadphonesIcon size={14} /> Texnik yordam
+          </div>
+        </footer>
+
+        {/* Modals Overlay */}
+        {showBookmarks && (
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.4)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowBookmarks(false);
+            }
+          }}>
+            {/* Bookmarks Modal */}
+            <div className="fade-in-up" style={{ background: '#FFFFFF', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '400px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Bookmark size={20} className="text-blue" />
+                Eslatmalar ({bookmarks.size})
+              </h3>
+              
+              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {bookmarks.size === 0 ? (
+                  <p style={{ color: 'rgba(15, 23, 42, 0.5)', textAlign: 'center', padding: '24px 0' }}>Sizda eslatmalar yo'q.</p>
+                ) : (
+                  Array.from(bookmarks).map(qid => {
+                    const qIndex = questions.findIndex(q => q.id === qid);
+                    if (qIndex === -1) return null;
+                    return (
+                      <button 
+                        key={qid}
+                        onClick={() => jumpToQuestion(qIndex)}
+                        style={{ padding: '12px', background: '#F8FAFC', border: '1px solid rgba(15, 23, 42, 0.1)', borderRadius: '8px', textAlign: 'left', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#0F172A', fontWeight: '500' }}
+                      >
+                        <span>{qIndex + 1}-savol</span>
+                        <ChevronRight size={16} className="text-muted" />
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+              
+              <button 
+                onClick={() => setShowBookmarks(false)}
+                style={{ marginTop: '16px', padding: '12px', background: 'transparent', border: '1px solid rgba(15, 23, 42, 0.2)', borderRadius: '8px', color: '#0F172A', cursor: 'pointer', fontWeight: '600' }}
+              >
+                Yopish
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showErrorReport && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={(e) => {
+            if(e.target === e.currentTarget) setShowErrorReport(false);
+          }}>
+            <div className="fade-in-up" style={{ background: '#FFFFFF', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertCircle size={20} className="text-red" />
+                Xatolik haqida xabar berish
+              </h3>
+              <p style={{ fontSize: '14px', color: 'rgba(15, 23, 42, 0.6)', marginBottom: '16px', lineHeight: '1.5' }}>
+                Savolda yoki testda qandaydir xatolik topdingizmi? Bizga xabar bering!
+                {questions[currentIndex] && <strong style={{ display: 'block', marginTop: '4px', color: '#0F172A' }}>Joriy savol: {currentIndex + 1}-savol</strong>}
+              </p>
+              <textarea 
+                value={reportMessage}
+                onChange={e => setReportMessage(e.target.value)}
+                placeholder="Xatolik nima ekanligini batafsil yozing..."
+                style={{ width: '100%', minHeight: '100px', padding: '12px', borderRadius: '8px', border: '1px solid rgba(15, 23, 42, 0.2)', fontSize: '14px', color: '#0F172A', marginBottom: '16px', resize: 'vertical' }}
+              />
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button 
+                  onClick={() => setShowErrorReport(false)}
+                  style={{ padding: '8px 16px', background: 'transparent', border: '1px solid rgba(15, 23, 42, 0.2)', borderRadius: '8px', color: '#0F172A', cursor: 'pointer', fontWeight: '600' }}
+                >
+                  Bekor qilish
+                </button>
+                <button 
+                  onClick={submitErrorReport}
+                  disabled={isSubmittingReport || !reportMessage.trim()}
+                  style={{ padding: '8px 16px', background: '#2563EB', border: 'none', borderRadius: '8px', color: 'white', cursor: (isSubmittingReport || !reportMessage.trim()) ? 'not-allowed' : 'pointer', fontWeight: '600', opacity: (isSubmittingReport || !reportMessage.trim()) ? 0.5 : 1 }}
+                >
+                  {isSubmittingReport ? 'Yuborilmoqda...' : 'Yuborish'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Draggable Calculator Widget */}
+        {showCalculator && (
+          <DraggableCalculator onClose={() => setShowCalculator(false)} />
+        )}
+
+        {/* Review Modal */}
+        {showReviewModal && (
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: 'white', padding: '32px', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', width: '90%', maxWidth: '700px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
+                <h2 style={{ margin: 0, fontSize: '20px', color: '#0F172A', fontWeight: 'bold' }}>Imtihonni Yuborishdan Oldin Ko'zdan Kechirish</h2>
+                <button onClick={() => setShowReviewModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(15, 23, 42, 0.4)' }}>вњ•</button>
+              </div>
+
+              <div className="exam-legend" style={{ marginBottom: '24px', justifyContent: 'center' }}>
+                <div className="legend-item"><div className="legend-dot answered"></div> Javob berilgan</div>
+                <div className="legend-item"><div className="legend-dot unanswered"></div> Javob berilmagan</div>
+                <div className="legend-item"><div className="legend-dot bookmarked"></div> Eslatma</div>
+              </div>
+
+              <div style={{ overflowY: 'auto', padding: '4px', flex: 1 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(48px, 1fr))', gap: '12px' }}>
+                  {questions.map((q, i) => {
+                    const isAnswered = answers[q.id] !== undefined;
+                    const isBookmarked = bookmarks.has(q.id);
+
+                    let classes = 'grid-btn';
+                    if (isAnswered) classes += ' answered';
+                    if (isBookmarked) classes += ' bookmarked';
+
+                    return (
+                      <button
+                        key={q.id}
+                        className={classes}
+                        onClick={() => {
+                          setCurrentIndex(i);
+                          setShowReviewModal(false);
+                        }}
+                      >
+                        {i + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ marginTop: '32px', display: 'flex', gap: '16px', justifyContent: 'flex-end', borderTop: '1px solid rgba(15, 23, 42, 0.1)', paddingTop: '24px' }}>
+                <button onClick={() => setShowReviewModal(false)} style={{ padding: '12px 24px', borderRadius: '8px', border: '1px solid rgba(15, 23, 42, 0.1)', background: 'white', color: 'rgba(15, 23, 42, 0.5)', fontWeight: 'bold', cursor: 'pointer' }}>
+                  Davom etish
+                </button>
+                <button onClick={handleSubmit} disabled={submitting} className="btn-submit-exam" style={{ margin: 0, width: 'auto', padding: '12px 24px' }}>
+                  {submitting ? 'Yuborilmoqda...' : 'Tasdiqlash va Yuborish'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </main>
+    </div>
+  );
+}
