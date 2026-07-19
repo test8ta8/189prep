@@ -150,6 +150,9 @@ body.dark {
     padding: 10px 16px;
     top: 12px;
   }
+  .minimal-navbar.scrolled .navbar-cta-btn {
+    display: none;
+  }
   .btn-minimal-dark {
     padding: 10px 16px;
     font-size: 13px;

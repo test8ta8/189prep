@@ -128,7 +128,7 @@ export default function Navbar({ lang, setLang, onStartTest }) {
 
           <button
             onClick={onStartTest}
-            className="btn-minimal-dark"
+            className="btn-minimal-dark navbar-cta-btn"
           >
             <span>{lang === 'ru' ? 'Начать тест' : 'Testni Boshlash'}</span>
             <ArrowRight size={15} />
