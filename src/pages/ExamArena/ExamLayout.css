@@ -3,6 +3,7 @@
 .exam-container {
   display: flex;
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
   background-color: rgba(15, 23, 42, 0.03);
   font-family: 'Inter', sans-serif;
@@ -709,8 +710,8 @@
     display: none;
   }
   .exam-nav-item {
-    font-size: 14px;
-    padding: 8px 12px;
+    font-size: 13px;
+    padding: 6px 8px;
     white-space: nowrap;
   }
   .exam-nav-item.active::before {
@@ -748,6 +749,8 @@
   .exam-content-area {
     flex-direction: column;
     overflow-y: auto;
+    flex: 1;
+    min-height: 0;
   }
   .exam-question-section {
     padding: 16px;

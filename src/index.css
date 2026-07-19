@@ -106,12 +106,17 @@ body.dark {
   user-select: none;
 }
 
+.brand-logo-img {
+  height: 54px;
+  width: auto;
+  object-fit: contain;
+}
+
 .brand-logo-text {
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 900;
   letter-spacing: -0.8px;
   color: var(--text-primary);
-  text-transform: uppercase;
 }
 
 .brand-dot {
@@ -130,6 +135,30 @@ body.dark {
 @media (max-width: 768px) {
   .minimal-nav-links {
     display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 0 16px;
+  }
+  .minimal-navbar {
+    padding: 12px 0;
+  }
+  .minimal-navbar.scrolled {
+    width: calc(100% - 24px);
+    padding: 10px 16px;
+    top: 12px;
+  }
+  .btn-minimal-dark {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+  .brand-logo-img {
+    height: 36px;
+  }
+  .brand-logo-text {
+    font-size: 20px;
   }
 }
 
@@ -315,6 +344,45 @@ body.dark {
     rgba(249, 250, 251, 0.6) 100%
   );
   border-radius: 16px;
+}
+
+.hero-screenshot-container {
+  width: 100%;
+  height: 460px;
+  overflow: hidden;
+}
+
+.hero-screenshot-inner {
+  transform: scale(0.85);
+  transform-origin: top left;
+  width: 117.64%;
+  height: 540px;
+  display: flex;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  color: #374151;
+  text-align: left;
+  background: #F8F9FA;
+}
+
+@media (max-width: 1024px) {
+  .hero-screenshot-container { height: 350px; }
+  .hero-screenshot-inner { transform: scale(0.65); width: 153.84%; }
+}
+
+@media (max-width: 860px) {
+  .hero-screenshot-container { height: 280px; }
+  .hero-screenshot-inner { transform: scale(0.52); width: 192.3%; }
+}
+
+@media (max-width: 600px) {
+  .hero-screenshot-container { height: 200px; }
+  .hero-screenshot-inner { transform: scale(0.38); width: 263.15%; }
+}
+
+@media (max-width: 480px) {
+  .hero-screenshot-container { height: 160px; }
+  .hero-screenshot-inner { transform: scale(0.30); width: 333.33%; }
 }
 
 /* Floating Atmosphere Badges */
@@ -970,13 +1038,13 @@ html {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
+  padding: 80px 20px 40px 20px;
   background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.1), transparent 40%),
               radial-gradient(circle at bottom right, rgba(37, 99, 235, 0.05), transparent 40%),
               rgba(15, 23, 42, 0.03);
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .auth-page-wrapper::before {
@@ -1019,6 +1087,7 @@ html {
 .auth-card-minimal {
   width: 100%;
   max-width: 440px;
+  margin: auto;
   /* Modern Liquid Glass (iOS Style) */
   background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(24px) saturate(180%);
@@ -1034,6 +1103,13 @@ html {
   align-items: center;
   position: relative;
   z-index: 1;
+}
+
+@media (max-width: 480px) {
+  .auth-card-minimal {
+    padding: 32px 24px;
+    border-radius: 24px;
+  }
 }
 
 .auth-logo-top {

@@ -61,14 +61,13 @@ export default function Navbar({ lang, setLang, onStartTest }) {
         <div 
           onClick={() => scrollToSection('hero')}
           className="minimal-brand"
-          style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
         >
           <img 
             src="/logo-189.png" 
             alt="189 Logo" 
-            style={{ height: '54px', width: 'auto', objectFit: 'contain' }} 
+            className="brand-logo-img"
           />
-          <span style={{ fontSize: '26px', fontWeight: '900', letterSpacing: '-0.8px', color: '#0F172A' }}>
+          <span className="brand-logo-text">
             PREP
           </span>
         </div>

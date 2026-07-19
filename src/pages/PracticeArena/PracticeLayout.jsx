@@ -245,9 +245,7 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
             <HelpCircle size={18} /> Savollar
           </button>
           
-          <button className={`exam-nav-item ${showCalculator ? 'active' : ''}`} onClick={() => setShowCalculator(!showCalculator)}>
-            <Calculator size={18} /> Hisoblagich
-          </button>
+
           
           <button className={`exam-nav-item ${showBookmarks ? 'active' : ''}`} onClick={() => setShowBookmarks(!showBookmarks)}>
             <Bookmark size={18} /> Eslatmalar
@@ -271,9 +269,7 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
             <span>{config?.subject || "Amaliyot"} <span className="exam-header-subtitle">| O'zlashtirish</span></span>
           </div>
           <div className="exam-header-actions">
-            <button className="dark-mode-toggle">
-              <Moon size={16} /> Dark mode
-            </button>
+
             <div className="exam-user-profile">
               <div className="exam-avatar">
                 {((user?.full_name || user?.email || 'U').charAt(0)).toUpperCase()}
@@ -509,38 +505,7 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
               setShowBookmarks(false);
             }
           }}>
-            {/* Calculator Modal */}
-            {showCalculator && (
-              <div style={{ background: 'white', padding: '24px', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', width: '300px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                  <h3 style={{ margin: 0, fontSize: '16px', color: '#0F172A' }}>Hisoblagich</h3>
-                  <button onClick={() => setShowCalculator(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(15, 23, 42, 0.4)' }}>вњ•</button>
-                </div>
-                <div style={{ background: 'rgba(15, 23, 42, 0.04)', padding: '16px', borderRadius: '8px', marginBottom: '16px', textAlign: 'right', fontSize: '24px', minHeight: '60px', wordBreak: 'break-all' }}>
-                  {calcInput || '0'}
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-                  {['7','8','9','/','4','5','6','*','1','2','3','-','C','0','=','+'].map(btn => (
-                    <button 
-                      key={btn} 
-                      onClick={() => handleCalcClick(btn)}
-                      style={{ 
-                        padding: '16px 0', 
-                        fontSize: '18px', 
-                        border: 'none', 
-                        borderRadius: '8px', 
-                        background: ['/','*','-','+','='].includes(btn) ? 'rgba(37, 99, 235, 0.08)' : btn === 'C' ? '#FEE2E2' : 'rgba(15, 23, 42, 0.03)',
-                        color: ['/','*','-','+','='].includes(btn) ? '#2563EB' : btn === 'C' ? '#0F172A' : '#0F172A',
-                        cursor: 'pointer',
-                        fontWeight: '600'
-                      }}
-                    >
-                      {btn}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+
 
             {/* Bookmarks Modal */}
             {showBookmarks && (

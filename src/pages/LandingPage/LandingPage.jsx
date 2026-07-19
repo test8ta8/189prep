@@ -56,8 +56,8 @@ export default function LandingPage({ lang, onStartTest }) {
         <div className="hero-screenshot-showcase">
           <div className="hero-screenshot-glow" />
           <div className="hero-screenshot-frame" style={{ background: '#F8F9FA' }}>
-            <div style={{ width: '100%', height: '460px', overflow: 'hidden' }}>
-              <div style={{ transform: 'scale(0.85)', transformOrigin: 'top left', width: '117.64%', height: '540px', display: 'flex', fontFamily: '"Inter", sans-serif', fontSize: '13px', color: '#374151', textAlign: 'left', background: '#F8F9FA' }}>
+            <div className="hero-screenshot-container">
+              <div className="hero-screenshot-inner">
               {/* Left Sidebar */}
               <div style={{ width: '180px', background: '#FFFFFF', borderRight: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ padding: '24px 20px', display: 'flex', alignItems: 'center', gap: '4px' }}>
