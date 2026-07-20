@@ -41,16 +41,55 @@ export default function ScoreReportModal({ result, onRestart, onExit, user }) {
 
   const level = getLevelBadge(earnedBall);
 
-  const filteredQuestions = questions.filter(q => {
-    let isCorrect = false;
+  const isDTM = subject?.system === 'dtm';
+
+  const checkIsCorrect = (q, userAns) => {
     if (q.question_type === 'written') {
-      const uAns = (answers[q.id] || '').toString().trim().toLowerCase();
+      const uAns = (userAns || '').toString().trim().toLowerCase();
       const cAnsStr = (q.correct || q.correct_answer_text || '').toString().trim().toLowerCase();
       const cAnswers = cAnsStr.split(',').map(a => a.trim()).filter(a => a !== '');
-      isCorrect = cAnswers.includes(uAns) && uAns !== '';
-    } else {
-      isCorrect = answers[q.id] === q.correct;
+      return cAnswers.includes(uAns) && uAns !== '';
     }
+    return userAns === q.correct;
+  };
+
+  const topicStats = {};
+  if (isDTM) {
+    const dtmSubjects = (subject?.name || '').split('|');
+    const main1 = dtmSubjects[0] ? dtmSubjects[0].trim() : 'Asosiy Fan 1';
+    const main2 = dtmSubjects[1] ? dtmSubjects[1].trim() : 'Asosiy Fan 2';
+
+    questions.forEach((q, index) => {
+      let topic = q.topic;
+      let defaultPoints = 1;
+
+      if (!topic || topic === 'Umumiy') {
+        if (index < 10) { topic = 'Majburiy: Ona tili'; defaultPoints = 1.1; }
+        else if (index < 20) { topic = 'Majburiy: Matematika'; defaultPoints = 1.1; }
+        else if (index < 30) { topic = "Majburiy: O'zbekiston tarixi"; defaultPoints = 1.1; }
+        else if (index < 60) { topic = `Asosiy: ${main1}`; defaultPoints = 3.1; }
+        else if (index < 90) { topic = `Asosiy: ${main2}`; defaultPoints = 2.1; }
+        else { topic = 'Umumiy'; }
+      }
+      
+      q.displayTopic = topic;
+      const points = Number(q.points || defaultPoints);
+
+      if (!topicStats[topic]) {
+        topicStats[topic] = { total: 0, correct: 0, earnedBall: 0, maxBall: 0 };
+      }
+      topicStats[topic].total += 1;
+      topicStats[topic].maxBall += points;
+      
+      if (checkIsCorrect(q, answers[q.id])) {
+        topicStats[topic].correct += 1;
+        topicStats[topic].earnedBall += points;
+      }
+    });
+  }
+
+  const filteredQuestions = questions.filter(q => {
+    const isCorrect = checkIsCorrect(q, answers[q.id]);
     
     if (filter === 'correct') return isCorrect;
     if (filter === 'wrong') return !isCorrect;
@@ -74,9 +113,9 @@ export default function ScoreReportModal({ result, onRestart, onExit, user }) {
           <h1 style={{ fontSize: '36px', fontWeight: '800', color: '#0F172A', marginBottom: '12px', letterSpacing: '-0.5px' }}>
             Imtihon natijasi
           </h1>
-          <p style={{ fontSize: '15px', color: 'rgba(15, 23, 42, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Target size={16} /> {subject.name}</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={16} /> {timeSpent} sarflandi</span>
+          <p style={{ fontSize: '15px', color: 'rgba(15, 23, 42, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px', textAlign: 'center' }}><Target size={16} /> {subject.name}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px', textAlign: 'center' }}><Clock size={16} /> {timeSpent} sarflandi</span>
           </p>
 
           <div style={{ margin: '48px 0', display: 'flex', justifyContent: 'center' }}>
@@ -91,7 +130,7 @@ export default function ScoreReportModal({ result, onRestart, onExit, user }) {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', maxWidth: '600px', margin: '0 auto' }}>
+          <div className="stats-grid" style={{ display: 'grid', gap: '16px', maxWidth: '600px', margin: '0 auto' }}>
             <div style={{ background: 'rgba(15, 23, 42, 0.02)', padding: '20px', borderRadius: '16px', border: '1px solid rgba(15, 23, 42, 0.05)', transition: 'transform 0.2s', cursor: 'default' }} className="hover-lift">
               <div style={{ color: 'rgba(15, 23, 42, 0.5)', fontSize: '13px', marginBottom: '8px' }}>To'g'ri javoblar</div>
               <div style={{ color: '#2563EB', fontSize: '28px', fontWeight: '800' }}>{correctCount}</div>
@@ -106,7 +145,33 @@ export default function ScoreReportModal({ result, onRestart, onExit, user }) {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', marginTop: '40px' }}>
+          {isDTM && Object.keys(topicStats).length > 0 && (
+            <div style={{ marginTop: '32px', textAlign: 'left', background: 'rgba(15, 23, 42, 0.02)', padding: '24px', borderRadius: '20px', border: '1px solid rgba(15, 23, 42, 0.05)', maxWidth: '600px', margin: '32px auto 0' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#0F172A', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <BarChart3 size={18} color="#2563EB" />
+                Fanlar bo'yicha natijalar
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {Object.entries(topicStats).map(([topic, stats]) => {
+                  return (
+                    <div key={topic} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'white', borderRadius: '12px', border: '1px solid rgba(15, 23, 42, 0.05)' }}>
+                      <div style={{ fontWeight: '600', color: '#0F172A', fontSize: '15px' }}>{topic}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: '600', color: 'rgba(15, 23, 42, 0.6)' }}>
+                          {stats.correct} / {stats.total} to'g'ri
+                        </div>
+                        <div style={{ fontSize: '14px', fontWeight: '700', color: '#2563EB', background: 'rgba(37, 99, 235, 0.1)', padding: '4px 10px', borderRadius: '8px' }}>
+                          {(Math.round(stats.earnedBall * 10) / 10).toFixed(1)} / {(Math.round(stats.maxBall * 10) / 10).toFixed(1)} ball
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="action-buttons" style={{ display: 'flex', gap: '16px', justifyContent: 'center', marginTop: '40px', flexWrap: 'wrap' }}>
             <button onClick={() => onRestart(subject.id)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 28px', borderRadius: '12px', background: '#2563EB', color: 'white', fontWeight: 'bold', fontSize: '15px', border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)', transition: 'all 0.2s' }} className="hover-scale">
               <RotateCcw size={18} />
               Qayta Topshirish
@@ -157,15 +222,7 @@ export default function ScoreReportModal({ result, onRestart, onExit, user }) {
             {filteredQuestions.map((q) => {
               const originalIndex = questions.findIndex(orig => orig.id === q.id) + 1;
               const userAns = answers[q.id];
-              let isCorrect = false;
-              if (q.question_type === 'written') {
-                const uAns = (userAns || '').toString().trim().toLowerCase();
-                const cAnsStr = (q.correct || q.correct_answer_text || '').toString().trim().toLowerCase();
-                const cAnswers = cAnsStr.split(',').map(a => a.trim()).filter(a => a !== '');
-                isCorrect = cAnswers.includes(uAns) && uAns !== '';
-              } else {
-                isCorrect = userAns === q.correct;
-              }
+              const isCorrect = checkIsCorrect(q, userAns);
 
               return (
                 <div key={q.id} style={{ background: 'white', borderRadius: '20px', padding: '24px', border: `1px solid ${isCorrect ? 'rgba(37, 99, 235, 0.3)' : 'rgba(15, 23, 42, 0.2)'}`, transition: 'all 0.2s' }} className="hover-border-glow">
@@ -177,7 +234,7 @@ export default function ScoreReportModal({ result, onRestart, onExit, user }) {
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                           <span style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#0F172A', background: 'rgba(15, 23, 42, 0.05)', padding: '4px 8px', borderRadius: '6px' }}>
-                            {q.topic || 'Umumiy'}
+                            {q.displayTopic || q.topic || 'Umumiy'}
                           </span>
                         </div>
                         <div style={{ fontSize: '16px', fontWeight: '600', color: '#0F172A', lineHeight: '1.5' }}><MathText>{q.question || q.text}</MathText></div>
@@ -236,6 +293,11 @@ export default function ScoreReportModal({ result, onRestart, onExit, user }) {
         .hover-scale:hover { transform: scale(1.02); }
         .hover-bg-light:hover { background: rgba(15, 23, 42, 0.04) !important; }
         .hover-border-glow:hover { border-color: rgba(37, 99, 235, 0.3) !important; box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.05); }
+        .stats-grid { grid-template-columns: repeat(3, 1fr); }
+        @media (max-width: 600px) {
+          .stats-grid { grid-template-columns: 1fr !important; }
+          .action-buttons button { width: 100%; justify-content: center; }
+        }
       `}} />
     </div>
   );

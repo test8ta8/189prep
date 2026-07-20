@@ -10,7 +10,8 @@ const MILLIY_SERTIFIKAT_SUBJECTS = [
   "Ona tili va adabiyot",
   "Kimyo",
   "Biologiya",
-  "Tarix"
+  "Tarix",
+  "Ingliz tili"
 ];
 
 export default function AdminTests() {
