@@ -138,7 +138,7 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
     }
     
     loadData();
-  }, [config, retryIds, user]);
+  }, [config, retryIds, user?.id]);
 
   const handleSelectOption = (questionId, optionIndex) => {
     // Don't allow changing answer if already checked
