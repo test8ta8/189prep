@@ -81,7 +81,7 @@ export default function NotificationsDropdown({ user, lang }) {
       </button>
 
       {isOpen && (
-        <div style={{ position: 'absolute', top: '56px', right: '0', width: '320px', background: 'white', borderRadius: '16px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)', border: '1px solid rgba(15, 23, 42, 0.1)', zIndex: 100 }}>
+        <div className="notifications-dropdown-menu" style={{ position: 'absolute', top: '56px', width: '320px', background: 'white', borderRadius: '16px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)', border: '1px solid rgba(15, 23, 42, 0.1)', zIndex: 100 }}>
           <div style={{ padding: '16px', borderBottom: '1px solid rgba(15, 23, 42, 0.04)' }}>
             <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', color: '#0F172A' }}>{lang === 'uz' ? 'Bildirishnomalar' : 'Уведомления'}</h3>
           </div>

@@ -10,33 +10,52 @@ export default function PracticeSetupView({ lang, onStartPractice }) {
 
   useEffect(() => {
     async function fetchCount() {
-      let testIds = [];
-      let queryTests = supabase.from('mock_tests').select('id').eq('is_premium', false);
+      let queryTests = supabase.from('mock_tests').select('id, subject, exam_system').eq('is_premium', false);
       if (subject) {
-        queryTests = queryTests.ilike('subject', `%${subject}%`);
+        queryTests = queryTests.or(`subject.ilike.%${subject}%,exam_system.eq.dtm`);
       }
       
       const { data: testData } = await queryTests;
-      if (testData && testData.length > 0) {
-        testIds = testData.map(t => t.id);
-      }
-
-      let query = supabase.from('questions').select('*', { count: 'exact', head: true });
-      
-      if (testIds.length > 0) {
-        query = query.in('test_id', testIds);
-      } else {
-        // No tests found for this subject
+      if (!testData || testData.length === 0) {
         setMatchingCount(0);
         return;
       }
+      
+      const testMap = new Map();
+      testData.forEach(t => testMap.set(t.id, t));
+      const testIds = Array.from(testMap.keys());
 
+      let query = supabase.from('questions').select('id, test_id, order_num').in('test_id', testIds);
       if (difficulty.length > 0) {
         query = query.in('difficulty', difficulty);
       }
       
-      const { count: dbCount } = await query;
-      setMatchingCount(dbCount || 0);
+      const { data: questionsData } = await query;
+      if (!questionsData) {
+        setMatchingCount(0);
+        return;
+      }
+      
+      const target = subject.toLowerCase();
+      const validQuestions = questionsData.filter(q => {
+        const testInfo = testMap.get(q.test_id);
+        if (testInfo.exam_system !== 'dtm') return true;
+        
+        const title = testInfo.subject.toLowerCase();
+        let isValid = false;
+        
+        if ((target.includes('ona tili') || target === 'ona tili va adabiyot') && q.order_num >= 1 && q.order_num <= 10) isValid = true;
+        if (target.includes('matematika') && q.order_num >= 11 && q.order_num <= 20) isValid = true;
+        if (target.includes('tarix') && q.order_num >= 21 && q.order_num <= 30) isValid = true;
+        
+        const parts = title.split(/ va |,| \/ /).map(s => s.trim());
+        if (parts.length >= 1 && parts[0].includes(target) && q.order_num >= 31 && q.order_num <= 60) isValid = true;
+        if (parts.length >= 2 && parts[1].includes(target) && q.order_num >= 61 && q.order_num <= 90) isValid = true;
+        
+        return isValid;
+      });
+      
+      setMatchingCount(validQuestions.length);
     }
     fetchCount();
   }, [subject, difficulty]);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ShieldAlert, Trash2, Ban, RefreshCcw, UserCircle, CreditCard, X } from 'lucide-react';
+import { Search, ShieldAlert, Trash2, Ban, RefreshCcw, UserCircle, CreditCard, X, BarChart2 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 
 export default function AdminUsers() {
@@ -13,6 +13,10 @@ export default function AdminUsers() {
   const [selectedUserForPlan, setSelectedUserForPlan] = useState(null);
   const [newPlan, setNewPlan] = useState('free');
   const [newPlanExpiry, setNewPlanExpiry] = useState('');
+
+  // Analytics modal state
+  const [analyticsModalUser, setAnalyticsModalUser] = useState(null);
+  const [userAnalyticsStats, setUserAnalyticsStats] = useState({ totalAttempts: 0, correctAttempts: 0, examsTaken: 0, loading: false });
 
   const fetchUsers = async () => {
     try {
@@ -108,6 +112,37 @@ export default function AdminUsers() {
       setNewPlanExpiry(new Date(user.subscription_until).toISOString().split('T')[0]);
     } else {
       setNewPlanExpiry('');
+    }
+  };
+
+  const openUserAnalytics = async (user) => {
+    setAnalyticsModalUser(user);
+    setUserAnalyticsStats({ totalAttempts: 0, correctAttempts: 0, examsTaken: 0, loading: true });
+    try {
+      const { data: attempts } = await supabase.from('attempts').select('is_correct').eq('user_id', user.id);
+      const { data: sessions } = await supabase.from('test_sessions').select('score, mock_tests(question_count)').eq('user_id', user.id);
+
+      let totalAttempts = 0;
+      let correctAttempts = 0;
+      let examsTaken = 0;
+
+      if (attempts) {
+        totalAttempts += attempts.length;
+        correctAttempts += attempts.filter(a => a.is_correct).length;
+      }
+
+      if (sessions) {
+        examsTaken = sessions.length;
+        sessions.forEach(s => {
+          totalAttempts += (s.mock_tests?.question_count || 0);
+          correctAttempts += (s.score || 0);
+        });
+      }
+
+      setUserAnalyticsStats({ totalAttempts, correctAttempts, examsTaken, loading: false });
+    } catch(err) {
+      console.error(err);
+      setUserAnalyticsStats(prev => ({...prev, loading: false}));
     }
   };
 
@@ -216,6 +251,14 @@ export default function AdminUsers() {
                     <div style={{ display: 'flex', gap: '8px' }}>
                       {u.role !== 'admin' && (
                         <>
+                          <button 
+                            className="icon-btn text-blue" 
+                            title="Foydalanuvchi Analitikasi"
+                            onClick={() => openUserAnalytics(u)}
+                            style={{ color: '#3B82F6' }}
+                          >
+                            <BarChart2 size={16} />
+                          </button>
                           <button 
                             className="icon-btn text-green" 
                             title="Ta'rifni o'zgartirish"
@@ -334,6 +377,59 @@ export default function AdminUsers() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Analytics Modal */}
+      {analyticsModalUser && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
+          <div className="fade-in-up" style={{ background: 'white', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <BarChart2 size={20} color="#2563EB" /> 
+                Shaxsiy Analitika
+              </h3>
+              <button onClick={() => setAnalyticsModalUser(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748B' }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div style={{ marginBottom: '20px', padding: '12px', background: '#F8FAFC', borderRadius: '8px', border: '1px solid rgba(15, 23, 42, 0.05)' }}>
+              <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#0F172A' }}>{analyticsModalUser.full_name || analyticsModalUser.id}</div>
+              <div style={{ fontSize: '12px', color: '#64748B' }}>{analyticsModalUser.phone || 'Telefon kiritilmagan'}</div>
+            </div>
+
+            {userAnalyticsStats.loading ? (
+              <div style={{ textAlign: 'center', padding: '32px 0', color: '#64748B' }}>Ma'lumotlar yuklanmoqda...</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: '#F1F5F9', borderRadius: '8px' }}>
+                  <span style={{ color: '#334155', fontWeight: '500' }}>Jami yechilgan savollar:</span>
+                  <span style={{ fontWeight: 'bold', color: '#0F172A' }}>{userAnalyticsStats.totalAttempts}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: '#ECFDF5', borderRadius: '8px' }}>
+                  <span style={{ color: '#065F46', fontWeight: '500' }}>To'g'ri topilgan javoblar:</span>
+                  <span style={{ fontWeight: 'bold', color: '#059669' }}>
+                    {userAnalyticsStats.correctAttempts} 
+                    <span style={{ fontSize: '12px', marginLeft: '4px', opacity: 0.8 }}>
+                      ({userAnalyticsStats.totalAttempts > 0 ? Math.round((userAnalyticsStats.correctAttempts / userAnalyticsStats.totalAttempts) * 100) : 0}%)
+                    </span>
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', background: '#EFF6FF', borderRadius: '8px' }}>
+                  <span style={{ color: '#1E40AF', fontWeight: '500' }}>Yechilgan testlar (imtihonlar) soni:</span>
+                  <span style={{ fontWeight: 'bold', color: '#2563EB' }}>{userAnalyticsStats.examsTaken}</span>
+                </div>
+              </div>
+            )}
+            
+            <button 
+              onClick={() => setAnalyticsModalUser(null)}
+              style={{ width: '100%', padding: '12px', background: '#0F172A', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', marginTop: '24px', cursor: 'pointer' }}
+            >
+              Yopish
+            </button>
           </div>
         </div>
       )}

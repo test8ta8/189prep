@@ -36,13 +36,15 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
           qData = data || [];
         } else if (config) {
           // Standard practice mode
+          let testMap = new Map();
           let testIds = [];
           if (config.subject) {
-            let queryTests = supabase.from('mock_tests').select('id').eq('is_premium', false);
-            queryTests = queryTests.ilike('subject', `%${config.subject}%`);
+            let queryTests = supabase.from('mock_tests').select('id, subject, exam_system').eq('is_premium', false);
+            queryTests = queryTests.or(`subject.ilike.%${config.subject}%,exam_system.eq.dtm`);
             const { data: testData } = await queryTests;
             if (testData && testData.length > 0) {
-              testIds = testData.map(t => t.id);
+              testData.forEach(t => testMap.set(t.id, t));
+              testIds = Array.from(testMap.keys());
             }
           }
 
@@ -59,10 +61,34 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
           if (config.difficulty && config.difficulty.length > 0) {
             query = query.in('difficulty', config.difficulty);
           }
-          // We can't strictly limit with random order easily in standard supabase RPC without custom function,
-          // so we fetch limit and just use those.
-          const { data } = await query.limit(config.count || 10);
-          qData = data || [];
+          
+          const { data } = await query;
+          let validQuestions = data || [];
+          
+          if (config.subject && validQuestions.length > 0) {
+            const target = config.subject.toLowerCase();
+            validQuestions = validQuestions.filter(q => {
+              const testInfo = testMap.get(q.test_id);
+              if (!testInfo || testInfo.exam_system !== 'dtm') return true;
+              
+              const title = testInfo.subject.toLowerCase();
+              let isValid = false;
+              
+              if ((target.includes('ona tili') || target === 'ona tili va adabiyot') && q.order_num >= 1 && q.order_num <= 10) isValid = true;
+              if (target.includes('matematika') && q.order_num >= 11 && q.order_num <= 20) isValid = true;
+              if (target.includes('tarix') && q.order_num >= 21 && q.order_num <= 30) isValid = true;
+              
+              const parts = title.split(/ va |,| \/ /).map(s => s.trim());
+              if (parts.length >= 1 && parts[0].includes(target) && q.order_num >= 31 && q.order_num <= 60) isValid = true;
+              if (parts.length >= 2 && parts[1].includes(target) && q.order_num >= 61 && q.order_num <= 90) isValid = true;
+              
+              return isValid;
+            });
+          }
+          
+          // Randomize and limit
+          validQuestions.sort(() => 0.5 - Math.random());
+          qData = validQuestions.slice(0, config.count || 10);
         }
 
         if (user && qData.length > 0) {

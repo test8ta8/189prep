@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Edit2, Trash2, Search, CheckCircle, XCircle, Settings } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, CheckCircle, XCircle, Settings, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import AdminQuestionsManager from './AdminQuestionsManager';
 
@@ -25,6 +25,8 @@ export default function AdminTests() {
   const [formData, setFormData] = useState({
     title: '',
     subject: '',
+    dtm_main1: '',
+    dtm_main2: '',
     duration_minutes: 180,
     question_count: 90,
     is_premium: false,
@@ -66,8 +68,12 @@ export default function AdminTests() {
       
       if (insertData.exam_system === 'alevel') {
         insertData.title = `${insertData.variant_name} - Paper ${insertData.paper_number}`;
+      } else if (insertData.exam_system === 'dtm') {
+        insertData.subject = `${formData.dtm_main1}|${formData.dtm_main2}`;
       }
       delete insertData.variant_name;
+      delete insertData.dtm_main1;
+      delete insertData.dtm_main2;
 
       if (editingTestId) {
         const { error } = await supabase.from('mock_tests').update(insertData).eq('id', editingTestId);
@@ -80,7 +86,7 @@ export default function AdminTests() {
       setIsModalOpen(false);
       setEditingTestId(null);
       fetchTests();
-      setFormData({ title: '', subject: '', duration_minutes: 180, question_count: 90, is_premium: false, available_from: '', available_until: '', exam_system: 'dtm', paper_number: '', variant_name: '' });
+      setFormData({ title: '', subject: '', dtm_main1: '', dtm_main2: '', duration_minutes: 180, question_count: 90, is_premium: false, available_from: '', available_until: '', exam_system: 'dtm', paper_number: '', variant_name: '' });
     } catch (err) {
       alert('Xatolik: ' + err.message);
     }
@@ -110,6 +116,16 @@ export default function AdminTests() {
     }
   };
 
+  const toggleVisibility = async (t) => {
+    try {
+      const { error } = await supabase.from('mock_tests').update({ is_hidden: !t.is_hidden }).eq('id', t.id);
+      if (error) throw error;
+      fetchTests();
+    } catch (err) {
+      alert("Xatolik: " + err.message);
+    }
+  };
+
   if (managingTest) {
     return <AdminQuestionsManager test={managingTest} onBack={() => setManagingTest(null)} />;
   }
@@ -127,7 +143,7 @@ export default function AdminTests() {
 
         <button className="admin-btn-primary" onClick={() => {
           setEditingTestId(null);
-          setFormData({ title: '', subject: '', duration_minutes: 180, question_count: 90, is_premium: false, available_from: '', available_until: '', exam_system: 'dtm', paper_number: '', variant_name: '' });
+          setFormData({ title: '', subject: '', dtm_main1: '', dtm_main2: '', duration_minutes: 180, question_count: 90, is_premium: false, available_from: '', available_until: '', exam_system: 'dtm', paper_number: '', variant_name: '' });
           setIsModalOpen(true);
         }}>
           <Plus size={18} />
@@ -153,9 +169,10 @@ export default function AdminTests() {
             </thead>
             <tbody>
               {paginatedTests.map(t => (
-                <tr key={t.id}>
+                <tr key={t.id} style={{ opacity: t.is_hidden ? 0.6 : 1 }}>
                   <td style={{ fontWeight: 600 }}>
                     {t.title}
+                    {t.is_hidden && <span style={{ marginLeft: '8px', fontSize: '11px', background: '#FEE2E2', color: '#991B1B', padding: '2px 6px', borderRadius: '4px' }}>Yashirin</span>}
                     {t.exam_system === 'alevel' && (
                       <div style={{ fontSize: '11px', color: '#3B82F6', marginTop: '4px' }}>
                         A-Level {t.paper_number ? `Paper ${t.paper_number}` : ''}
@@ -202,6 +219,9 @@ export default function AdminTests() {
                     <button className="icon-btn text-blue" title="Savollarni Boshqarish" onClick={() => setManagingTest(t)}>
                       <Settings size={16} />
                     </button>
+                    <button className="icon-btn text-muted ml-2" title={t.is_hidden ? "Ko'rsatish" : "Yashirish"} onClick={() => toggleVisibility(t)}>
+                      {t.is_hidden ? <EyeOff size={16} color="#94A3B8" /> : <Eye size={16} />}
+                    </button>
                     <button
                       className="icon-btn text-muted ml-2"
                       title="Tahrirlash"
@@ -210,6 +230,8 @@ export default function AdminTests() {
                         setFormData({
                           title: t.title,
                           subject: t.subject,
+                          dtm_main1: t.exam_system === 'dtm' ? (t.subject || '').split('|')[0] || '' : '',
+                          dtm_main2: t.exam_system === 'dtm' ? (t.subject || '').split('|')[1] || '' : '',
                           duration_minutes: t.duration_minutes,
                           question_count: t.question_count,
                           is_premium: t.is_premium || false,
@@ -282,6 +304,17 @@ export default function AdminTests() {
                       <option key={sub} value={sub}>{sub}</option>
                     ))}
                   </select>
+                ) : formData.exam_system === 'dtm' ? (
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <select required value={formData.dtm_main1} onChange={e => setFormData({ ...formData, dtm_main1: e.target.value })} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid rgba(15, 23, 42, 0.1)', background: '#FFFFFF', color: '#0F172A' }}>
+                      <option value="">1-Asosiy fan</option>
+                      {MILLIY_SERTIFIKAT_SUBJECTS.map(sub => <option key={sub} value={sub}>{sub}</option>)}
+                    </select>
+                    <select required value={formData.dtm_main2} onChange={e => setFormData({ ...formData, dtm_main2: e.target.value })} style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid rgba(15, 23, 42, 0.1)', background: '#FFFFFF', color: '#0F172A' }}>
+                      <option value="">2-Asosiy fan</option>
+                      {MILLIY_SERTIFIKAT_SUBJECTS.map(sub => <option key={sub} value={sub}>{sub}</option>)}
+                    </select>
+                  </div>
                 ) : (
                   <input required type="text" value={formData.subject} onChange={e => setFormData({ ...formData, subject: e.target.value })} placeholder="Masalan: O'zbek tili" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid rgba(15, 23, 42, 0.1)', background: '#FFFFFF', color: '#0F172A' }} />
                 )}
@@ -294,6 +327,8 @@ export default function AdminTests() {
                     const newSystem = e.target.value;
                     if (newSystem === 'milliy_sertifikat') {
                       setFormData({ ...formData, exam_system: newSystem, duration_minutes: 150, question_count: 45, subject: MILLIY_SERTIFIKAT_SUBJECTS[0] });
+                    } else if (newSystem === 'dtm') {
+                      setFormData({ ...formData, exam_system: newSystem, duration_minutes: 180, question_count: 90, subject: '' });
                     } else if (newSystem === 'alevel') {
                       setFormData({ ...formData, exam_system: newSystem, subject: '' });
                     } else {

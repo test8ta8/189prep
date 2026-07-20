@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PlayCircle, Clock, BookOpen, Lock, Star, FileCheck } from 'lucide-react';
+import { PlayCircle, Clock, BookOpen, Lock, Star, FileCheck, Users, Award } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import ALevelConfigModal from './ALevelConfigModal';
 import CertificateModal from '../../../components/exam/CertificateModal';
@@ -58,13 +58,13 @@ export default function MocksView({ lang, user, onStartExam, onNavigate }) {
   useEffect(() => {
     async function fetchTests() {
       try {
-        const { data, error } = await supabase.from('mock_tests').select('*').order('created_at', { ascending: false });
+        const { data, error } = await supabase.from('mock_tests').select('*, test_sessions(count)').neq('is_hidden', true).order('created_at', { ascending: false });
         if (!error && data) {
           setMockExams(data);
         }
 
         if (user) {
-          const { data: sessions } = await supabase.from('test_sessions').select('test_id, score, completed_at').eq('user_id', user.id).order('completed_at', { ascending: false });
+          const { data: sessions } = await supabase.from('test_sessions').select('test_id, score, completed_at').eq('user_id', user.id).order('score', { ascending: false });
           if (sessions) {
             const solvedMap = new Map();
             sessions.forEach(s => {
@@ -206,7 +206,7 @@ export default function MocksView({ lang, user, onStartExam, onNavigate }) {
                 <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#0F172A', lineHeight: '1.3' }}>{exam.title}</h3>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', borderTop: '1px solid rgba(15, 23, 42, 0.1)', borderBottom: '1px solid rgba(15, 23, 42, 0.1)', padding: '12px 0', margin: '8px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px', borderTop: '1px solid rgba(15, 23, 42, 0.1)', borderBottom: '1px solid rgba(15, 23, 42, 0.1)', padding: '12px 0', margin: '8px 0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'rgba(15, 23, 42, 0.5)', fontSize: '13px', fontWeight: '500' }}>
                   <Clock size={16} />
                   <span>{exam.duration_minutes} min</span>
@@ -214,6 +214,10 @@ export default function MocksView({ lang, user, onStartExam, onNavigate }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'rgba(15, 23, 42, 0.5)', fontSize: '13px', fontWeight: '500' }}>
                   <BookOpen size={16} />
                   <span>{exam.question_count} savol</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'rgba(15, 23, 42, 0.5)', fontSize: '13px', fontWeight: '500' }}>
+                  <Users size={16} />
+                  <span>{exam.test_sessions ? exam.test_sessions[0]?.count || 0 : 0} marta yechilgan</span>
                 </div>
               </div>
 
@@ -239,6 +243,27 @@ export default function MocksView({ lang, user, onStartExam, onNavigate }) {
                   >
                     <FileCheck size={18} /> {isUz ? "Sertifikatni ko'rish" : 'Посмотреть сертификат'}
                   </button>
+                )}
+
+                {solvedTests.has(exam.id) && exam.exam_system === 'dtm' && (
+                  <div
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '12px',
+                      background: 'rgba(37, 99, 235, 0.05)',
+                      color: '#2563EB',
+                      border: '1px solid rgba(37, 99, 235, 0.1)',
+                      fontWeight: 'bold',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <Award size={18} />
+                    {isUz ? "Natijangiz:" : "Ваш результат:"} {solvedTests.get(exam.id)} / 189 ball
+                  </div>
                 )}
 
                 <button

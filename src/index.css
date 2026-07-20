@@ -1362,3 +1362,15 @@ html {
 }
 
 .exam-q-label-custom p { margin: 0; padding: 0; display: inline; }
+
+/* Notifications Dropdown */
+.notifications-dropdown-menu {
+  right: 0; /* Default for desktop: align to right edge of button */
+}
+
+@media (max-width: 768px) {
+  .notifications-dropdown-menu {
+    right: auto; /* Remove right alignment */
+    left: 0;     /* Align to left edge of button on mobile */
+  }
+}

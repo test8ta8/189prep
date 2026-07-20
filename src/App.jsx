@@ -9,6 +9,7 @@ import WorkspaceLayout from './pages/Workspace/WorkspaceLayout';
 import AdminLayout from './pages/Admin/AdminLayout';
 import ExamLayout from './pages/ExamArena/ExamLayout';
 import PracticeLayout from './pages/PracticeArena/PracticeLayout';
+import LegalPage from './pages/LegalPage/LegalPage';
 import { supabase } from './lib/supabase';
 
 export default function App() {
@@ -28,6 +29,7 @@ export default function App() {
   const [mistakeRetryIds, setMistakeRetryIds] = useState(() => loadState('app_mistakeRetryIds', null));
   const [pendingSubject, setPendingSubject] = useState('uzbek');
   const [isInitializing, setIsInitializing] = useState(true);
+  const [legalPage, setLegalPage] = useState(null);
 
   // Persist routing state across refreshes
   useEffect(() => localStorage.setItem('app_lang', JSON.stringify(lang)), [lang]);
@@ -151,6 +153,10 @@ export default function App() {
       );
     }
 
+    if (legalPage) {
+      return <LegalPage type={legalPage} onBack={() => setLegalPage(null)} />;
+    }
+
     if (viewMode === 'exam') {
       return (
         <ExamLayout 
@@ -223,6 +229,10 @@ export default function App() {
 
   // 3. Landing Page View (unauthenticated)
 
+  if (legalPage) {
+    return <LegalPage type={legalPage} onBack={() => setLegalPage(null)} />;
+  }
+
   return (
     <div className="app-container">
       <div>
@@ -240,7 +250,7 @@ export default function App() {
         </main>
       </div>
 
-      <Footer lang={lang} />
+      <Footer lang={lang} onOpenLegal={(type) => setLegalPage(type)} />
     </div>
   );
 }

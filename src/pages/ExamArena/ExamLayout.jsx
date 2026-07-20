@@ -173,16 +173,29 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
       if (submitting || examResult) return;
 
       let score = 0;
-      questions.forEach(q => {
+      let maxScore = 0;
+      let correctAnswersCount = 0;
+      questions.forEach((q, idx) => {
+        let questionPoints = q.points || 1;
+        if (testInfo?.exam_system === 'dtm') {
+          if (idx < 30) questionPoints = 1.1;
+          else if (idx < 60) questionPoints = 3.1;
+          else questionPoints = 2.1;
+        }
+        maxScore += questionPoints;
+
         if (q.question_type === 'written') {
           const userAns = (answers[q.id] || '').toString().trim().toLowerCase();
-          const correctAns = (q.correct_answer_text || '').toString().trim().toLowerCase();
-          if (userAns === correctAns && correctAns !== '') {
-            score += q.points || 1;
+          const correctAnsStr = (q.correct_answer_text || '').toString().trim().toLowerCase();
+          const correctAnswers = correctAnsStr.split(',').map(a => a.trim()).filter(a => a !== '');
+          if (correctAnswers.includes(userAns) && userAns !== '') {
+            score += questionPoints;
+            correctAnswersCount++;
           }
         } else {
           if (answers[q.id] === q.correct_option_index) {
-            score += q.points || 1;
+            score += questionPoints;
+            correctAnswersCount++;
           }
         }
       });
@@ -190,19 +203,28 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
       const timeSpentSecs = (testInfo ? testInfo.duration_minutes * 60 : 180 * 60) - timeLeft;
       const resultObj = {
         subject: { name: testInfo?.subject || 'Test', id: testId || null, system: testInfo?.exam_system || 'dtm' },
-        questions: questions.map(q => ({
-          ...q,
-          correct: q.options ? q.options[q.correct_option_index] : ''
-        })),
+        questions: questions.map((q, i) => {
+          let pts = q.points || 1;
+          if (testInfo?.exam_system === 'dtm') {
+            if (i < 30) pts = 1.1;
+            else if (i < 60) pts = 3.1;
+            else pts = 2.1;
+          }
+          return {
+            ...q,
+            points: pts,
+            correct: q.options ? q.options[q.correct_option_index] : ''
+          };
+        }),
         answers: Object.fromEntries(
           Object.entries(answers).map(([qid, optIdx]) => {
             const q = questions.find(item => item.id === qid);
             return [qid, q && q.options ? q.options[optIdx] : null];
           })
         ),
-        correctCount: score,
-        earnedBall: score,
-        maxBall: questions.reduce((sum, q) => sum + (q.points || 1), 0),
+        correctCount: correctAnswersCount,
+        earnedBall: Number(score.toFixed(1)),
+        maxBall: Number(maxScore.toFixed(1)),
         timeSpent: formatTime(timeSpentSecs)
       };
 
@@ -340,34 +362,55 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
     // Normal non-ALevel submit
     setSubmitting(true);
     let score = 0;
-    questions.forEach(q => {
+    let maxScore = 0;
+    let correctAnswersCount = 0;
+    questions.forEach((q, idx) => {
+      let questionPoints = q.points || 1;
+      if (testInfo?.exam_system === 'dtm') {
+        if (idx < 30) questionPoints = 1.1;
+        else if (idx < 60) questionPoints = 3.1;
+        else questionPoints = 2.1;
+      }
+      maxScore += questionPoints;
+
       if (q.question_type === 'written') {
         const userAns = (answers[q.id] || '').toString().trim().toLowerCase();
         const correctAnsStr = (q.correct_answer_text || '').toString().trim().toLowerCase();
         const correctAnswers = correctAnsStr.split(',').map(a => a.trim()).filter(a => a !== '');
         if (correctAnswers.includes(userAns) && userAns !== '') {
-          score += q.points || 1;
+          score += questionPoints;
+          correctAnswersCount++;
         }
       } else {
         if (answers[q.id] === q.correct_option_index) {
-          score += q.points || 1;
+          score += questionPoints;
+          correctAnswersCount++;
         }
       }
     });
 
     try {
       if (testId) {
-        await supabase.from('test_sessions').insert([{ user_id: user.id, test_id: testId, score: score, completed_at: new Date().toISOString() }]);
+        await supabase.from('test_sessions').insert([{ user_id: user.id, test_id: testId, score: Number(score.toFixed(1)), completed_at: new Date().toISOString() }]);
       }
       setShowReviewModal(false);
 
       const timeSpentSecs = (testInfo ? testInfo.duration_minutes * 60 : 180 * 60) - timeLeft;
       const resultObj = {
         subject: { name: testInfo?.subject || 'Test', id: testId, system: testInfo?.exam_system || 'dtm' },
-        questions: questions.map(q => ({
-          ...q,
-          correct: q.question_type === 'written' ? q.correct_answer_text : (q.options ? q.options[q.correct_option_index] : '')
-        })),
+        questions: questions.map((q, i) => {
+          let pts = q.points || 1;
+          if (testInfo?.exam_system === 'dtm') {
+            if (i < 30) pts = 1.1;
+            else if (i < 60) pts = 3.1;
+            else pts = 2.1;
+          }
+          return {
+            ...q,
+            points: pts,
+            correct: q.question_type === 'written' ? q.correct_answer_text : (q.options ? q.options[q.correct_option_index] : '')
+          };
+        }),
         answers: Object.fromEntries(
           Object.entries(answers).map(([qid, ansVal]) => {
             const q = questions.find(item => item.id === qid);
@@ -376,9 +419,9 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
             return [qid, q.options ? q.options[ansVal] : null];
           })
         ),
-        correctCount: score,
-        earnedBall: score,
-        maxBall: questions.reduce((sum, q) => sum + (q.points || 1), 0),
+        correctCount: correctAnswersCount,
+        earnedBall: Number(score.toFixed(1)),
+        maxBall: Number(maxScore.toFixed(1)),
         timeSpent: formatTime(timeSpentSecs)
       };
 
@@ -653,6 +696,23 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
                   </div>
                 </div>
 
+                {/* DTM Subject Label */}
+                {testInfo?.exam_system === 'dtm' && (
+                  <div style={{ marginBottom: '16px', background: 'rgba(37, 99, 235, 0.1)', color: '#1E40AF', padding: '12px 20px', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(37, 99, 235, 0.2)' }}>
+                    {(() => {
+                      const mains = (testInfo.subject || '').split('|');
+                      const main1 = mains[0] || '1-Asosiy fan';
+                      const main2 = mains[1] || '2-Asosiy fan';
+                      if (currentIndex >= 0 && currentIndex < 10) return 'Majburiy Ona tili';
+                      if (currentIndex >= 10 && currentIndex < 20) return 'Majburiy Matematika';
+                      if (currentIndex >= 20 && currentIndex < 30) return "Majburiy O'zbekiston tarixi";
+                      if (currentIndex >= 30 && currentIndex < 60) return `Asosiy fan: ${main1}`;
+                      if (currentIndex >= 60 && currentIndex < 90) return `Asosiy fan: ${main2}`;
+                      return 'DTM Testi';
+                    })()}
+                  </div>
+                )}
+
                 {/* Question Card */}
                 <div className="exam-question-card">
                   <div className="exam-q-header">
@@ -715,25 +775,21 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
                     <ChevronLeft size={16} /> Oldingi savol
                   </button>
 
-                  <button className="exam-btn-outline" onClick={() => toggleBookmark(currentQ.id)} style={{ color: '#2563EB', borderColor: 'rgba(37, 99, 235, 0.2)', background: 'rgba(37, 99, 235, 0.08)' }}>
-                    <Bookmark size={16} fill={bookmarks.has(currentQ.id) ? "currentColor" : "none"} /> Eslatmaga qo'shish
-                  </button>
-
-                  <button 
-                    className="btn-submit-exam mobile-only-submit"
-                    onClick={() => setShowReviewModal(true)} 
-                    disabled={submitting}
-                    style={{ background: '#10B981', color: 'white', borderColor: '#10B981' }}
-                  >
-                    <Flag size={16} /> Yakunlash
-                  </button>
-
                   <button
                     className="exam-btn-primary"
                     disabled={currentIndex === questions.length - 1}
                     onClick={() => setCurrentIndex(prev => prev + 1)}
                   >
                     Keyingi savol <ChevronRight size={16} />
+                  </button>
+                  
+                  <button 
+                    className="btn-submit-exam mobile-only-submit"
+                    onClick={() => setShowReviewModal(true)} 
+                    disabled={submitting}
+                    style={{ background: '#10B981', color: 'white', borderColor: '#10B981', width: '100%', marginTop: '8px' }}
+                  >
+                    <Flag size={16} /> Imtihonni yakunlash
                   </button>
                 </div>
               </>

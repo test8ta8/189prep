@@ -2,7 +2,7 @@ import React from 'react';
 import { ShieldCheck, Send } from 'lucide-react';
 import { TRANSLATIONS } from '../../data/translations';
 
-export default function Footer({ lang = 'uz' }) {
+export default function Footer({ lang = 'uz', onOpenLegal }) {
   const t = TRANSLATIONS[lang].footer;
 
   return (
@@ -39,13 +39,13 @@ export default function Footer({ lang = 'uz' }) {
               {lang === 'ru' ? 'Документы' : "Hujjatlar"}
             </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '15px', color: 'rgba(15, 23, 42, 0.5)', fontWeight: '500' }}>
-              <span style={{ cursor: 'pointer' }} className="footer-link">
+              <span style={{ cursor: 'pointer' }} className="footer-link" onClick={() => onOpenLegal && onOpenLegal('privacy')}>
                 {lang === 'ru' ? 'Политика конфиденциальности' : 'Maxfiylik siyosati'}
               </span>
-              <span style={{ cursor: 'pointer' }} className="footer-link">
+              <span style={{ cursor: 'pointer' }} className="footer-link" onClick={() => onOpenLegal && onOpenLegal('terms')}>
                 {lang === 'ru' ? 'Условия использования' : 'Foydalanish shartlari'}
               </span>
-              <span style={{ cursor: 'pointer' }} className="footer-link">
+              <span style={{ cursor: 'pointer' }} className="footer-link" onClick={() => onOpenLegal && onOpenLegal('offer')}>
                 {lang === 'ru' ? 'Договор публичной оферты' : 'Ommaviy oferta shartnomasi'}
               </span>
             </div>

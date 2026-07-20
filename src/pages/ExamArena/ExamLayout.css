@@ -2,9 +2,9 @@
 
 .exam-container {
   display: flex;
-  height: 100vh;
-  height: 100dvh;
-  width: 100vw;
+  position: fixed;
+  inset: 0;
+  width: 100%;
   background-color: rgba(15, 23, 42, 0.03);
   font-family: 'Inter', sans-serif;
   overflow: hidden;
@@ -140,6 +140,8 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
 }
 
 /* Top Header */
@@ -781,12 +783,18 @@
     grid-template-columns: repeat(8, 1fr);
   }
   .exam-controls {
-    flex-direction: column;
-    gap: 12px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
   }
   .exam-controls button {
-    width: 100%;
+    flex: 1 1 calc(50% - 8px);
+    width: auto;
     justify-content: center;
+    padding: 12px 8px;
+  }
+  .exam-controls .mobile-only-submit {
+    flex: 1 1 100%;
   }
   .mobile-only-submit, .mobile-only-nav {
     display: flex !important;
