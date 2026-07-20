@@ -8,11 +8,17 @@ export default function AdminDashboard() {
   const [chartData, setChartData] = useState([0,0,0,0,0,0,0]);
   const [loading, setLoading] = useState(true);
 
+  const [onlineUsers, setOnlineUsers] = useState(0);
+
   useEffect(() => {
+    // Listen to global event dispatched from App.jsx
+    const handleOnlineChange = (e) => setOnlineUsers(e.detail);
+    window.addEventListener('onlineUsersChanged', handleOnlineChange);
+
     async function fetchRecent() {
       try {
-        // 1. Recent Users
-        const usersPromise = supabase.from('profiles').select('*').order('id', { ascending: false }).limit(5);
+        // 1. Recent Users (ordered by created_at)
+        const usersPromise = supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(5);
         
         // 2. Total Users Count
         const countUsersPromise = supabase.from('profiles').select('*', { count: 'exact', head: true });
@@ -28,20 +34,27 @@ export default function AdminDashboard() {
         d.setDate(d.getDate() - 7);
         const chartPromise = supabase.from('test_sessions').select('completed_at').gte('completed_at', d.toISOString());
 
+        // 6. Registered Today
+        const todayStr = new Date();
+        todayStr.setHours(0,0,0,0);
+        const todayUsersPromise = supabase.from('profiles').select('*', { count: 'exact', head: true }).gte('created_at', todayStr.toISOString());
+
         const [
           { data: recent }, 
           { count: totalUsers }, 
           { count: totalSubs }, 
           { count: totalTests },
-          { data: sessions }
-        ] = await Promise.all([usersPromise, countUsersPromise, countSubsPromise, countTestsPromise, chartPromise]);
+          { data: sessions },
+          { count: todayUsers }
+        ] = await Promise.all([usersPromise, countUsersPromise, countSubsPromise, countTestsPromise, chartPromise, todayUsersPromise]);
 
         if (recent) setRecentUsers(recent);
         
         setStats({
           users: totalUsers || 0,
           tests: totalTests || 0,
-          subs: totalSubs || 0
+          subs: totalSubs || 0,
+          today: todayUsers || 0
         });
 
         // Calculate chart data (last 7 days counts)
@@ -69,6 +82,10 @@ export default function AdminDashboard() {
       }
     }
     fetchRecent();
+
+    return () => {
+      window.removeEventListener('onlineUsersChanged', handleOnlineChange);
+    };
   }, []);
   return (
     <div className="admin-view fade-in">
@@ -85,7 +102,18 @@ export default function AdminDashboard() {
           <div className="stat-content">
             <h3>Jami Foydalanuvchilar</h3>
             <p className="stat-val">{loading ? '...' : stats.users}</p>
-            <span className="stat-trend positive"><TrendingUp size={14} /> Jonli</span>
+            <span className="stat-trend positive"><TrendingUp size={14} /> O'smoqda</span>
+          </div>
+        </div>
+
+        <div className="admin-stat-card">
+          <div className="stat-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.1)' }}>
+            <Users size={24} color="#10B981" />
+          </div>
+          <div className="stat-content">
+            <h3>Bugun Qo'shilganlar</h3>
+            <p className="stat-val">{loading ? '...' : stats.today}</p>
+            <span className="stat-trend positive" style={{ color: '#10B981' }}><TrendingUp size={14} /> Yangi</span>
           </div>
         </div>
 
@@ -96,18 +124,18 @@ export default function AdminDashboard() {
           <div className="stat-content">
             <h3>Ishlangan Testlar</h3>
             <p className="stat-val">{loading ? '...' : stats.tests}</p>
-            <span className="stat-trend positive"><TrendingUp size={14} /> Jonli</span>
+            <span className="stat-trend positive"><TrendingUp size={14} /> Jami</span>
           </div>
         </div>
 
-        <div className="admin-stat-card">
-          <div className="stat-icon-wrapper bg-green">
-            <CreditCard size={24} className="text-green" />
+        <div className="admin-stat-card" style={{ border: '2px solid rgba(16, 185, 129, 0.2)' }}>
+          <div className="stat-icon-wrapper" style={{ background: '#10B981' }}>
+            <div style={{ width: '12px', height: '12px', background: 'white', borderRadius: '50%', animation: 'pulse 2s infinite' }}></div>
           </div>
           <div className="stat-content">
-            <h3>Faol Ta'riflar (Pro/Elite)</h3>
-            <p className="stat-val">{loading ? '...' : stats.subs}</p>
-            <span className="stat-trend positive"><TrendingUp size={14} /> Jonli</span>
+            <h3>Saytda Onlayn</h3>
+            <p className="stat-val">{onlineUsers}</p>
+            <span className="stat-trend positive" style={{ color: '#10B981' }}>Real vaqtda</span>
           </div>
         </div>
       </div>

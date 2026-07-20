@@ -58,8 +58,17 @@ export default function MocksView({ lang, user, onStartExam, onNavigate }) {
   useEffect(() => {
     async function fetchTests() {
       try {
-        const { data, error } = await supabase.from('mock_tests').select('*, test_sessions(count)').neq('is_hidden', true).order('created_at', { ascending: false });
+        const { data, error } = await supabase.from('mock_tests').select('*').neq('is_hidden', true).order('created_at', { ascending: false });
         if (!error && data) {
+          try {
+            const { data: counts } = await supabase.from('mock_tests_with_unique_users').select('*');
+            if (counts) {
+              const countsMap = new Map(counts.map(c => [c.test_id, c.unique_users_count]));
+              data.forEach(d => {
+                d.unique_users_count = countsMap.get(d.id) || 0;
+              });
+            }
+          } catch (e) { console.warn('View not created yet', e); }
           setMockExams(data);
         }
 
@@ -217,7 +226,7 @@ export default function MocksView({ lang, user, onStartExam, onNavigate }) {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'rgba(15, 23, 42, 0.5)', fontSize: '13px', fontWeight: '500' }}>
                   <Users size={16} />
-                  <span>{exam.test_sessions ? exam.test_sessions[0]?.count || 0 : 0} marta yechilgan</span>
+                  <span>{exam.unique_users_count || 0} ta odam yechgan</span>
                 </div>
               </div>
 

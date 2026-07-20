@@ -114,7 +114,30 @@ export default function App() {
       setIsInitializing(false);
     });
 
-    return () => subscription.unsubscribe();
+    // 3. Track online presence
+    let globalChannel;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const userId = session?.user?.id || 'guest-' + Math.random().toString(36).substring(7);
+      globalChannel = supabase.channel('global_online');
+      globalChannel.on('presence', { event: 'sync' }, () => {
+        const state = globalChannel.presenceState();
+        let count = 0;
+        for (const id in state) {
+          count += state[id].length;
+        }
+        window.dispatchEvent(new CustomEvent('onlineUsersChanged', { detail: count }));
+      });
+      globalChannel.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await globalChannel.track({ user: userId });
+        }
+      });
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      if (globalChannel) supabase.removeChannel(globalChannel);
+    };
   }, []);
 
   // Clicking "Testni Boshlash" navigates to Login / Register page
