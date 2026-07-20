@@ -118,20 +118,31 @@ export default function App() {
     let globalChannel;
     supabase.auth.getSession().then(({ data: { session } }) => {
       const userId = session?.user?.id || 'guest-' + Math.random().toString(36).substring(7);
-      globalChannel = supabase.channel('global_online');
-      globalChannel.on('presence', { event: 'sync' }, () => {
+      globalChannel = supabase.channel('global_online', {
+        config: {
+          presence: { key: userId },
+        },
+      });
+      
+      const updatePresence = () => {
         const state = globalChannel.presenceState();
         let count = 0;
         for (const id in state) {
           count += state[id].length;
         }
+        window.currentOnlineUsers = count;
         window.dispatchEvent(new CustomEvent('onlineUsersChanged', { detail: count }));
-      });
-      globalChannel.subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await globalChannel.track({ user: userId });
-        }
-      });
+      };
+
+      globalChannel
+        .on('presence', { event: 'sync' }, updatePresence)
+        .on('presence', { event: 'join' }, updatePresence)
+        .on('presence', { event: 'leave' }, updatePresence)
+        .subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            await globalChannel.track({ online_at: new Date().toISOString() });
+          }
+        });
     });
 
     return () => {

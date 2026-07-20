@@ -8,7 +8,7 @@ export default function AdminDashboard() {
   const [chartData, setChartData] = useState([0,0,0,0,0,0,0]);
   const [loading, setLoading] = useState(true);
 
-  const [onlineUsers, setOnlineUsers] = useState(0);
+  const [onlineUsers, setOnlineUsers] = useState(window.currentOnlineUsers || 0);
 
   useEffect(() => {
     // Listen to global event dispatched from App.jsx
