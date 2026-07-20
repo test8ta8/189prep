@@ -59,13 +59,13 @@ body.dark {
   position: sticky;
   top: 0;
   z-index: 1000;
-  background: rgba(255, 255, 255, 0.45);
-  backdrop-filter: blur(28px) saturate(200%);
-  -webkit-backdrop-filter: blur(28px) saturate(200%);
-  border-bottom: 1px solid rgba(226, 232, 240, 0.5);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
   box-shadow:
-    0 4px 20px -2px rgba(15, 23, 42, 0.04),
-    inset 0 -1px 0 0 rgba(255, 255, 255, 0.6);
+    0 4px 20px -2px rgba(15, 23, 42, 0.05),
+    inset 0 -1px 0 0 rgba(255, 255, 255, 0.8);
   padding: 16px 0;
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -77,17 +77,13 @@ body.dark {
   max-width: 1240px;
   margin: 0 auto;
   border-radius: 9999px;
-  background: linear-gradient(135deg,
-      rgba(255, 255, 255, 0.55) 0%,
-      rgba(255, 255, 255, 0.35) 100%);
-  backdrop-filter: blur(32px) saturate(220%);
-  -webkit-backdrop-filter: blur(32px) saturate(220%);
-  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid rgba(226, 232, 240, 0.8);
   box-shadow:
-    0 20px 40px -12px rgba(15, 23, 42, 0.12),
-    0 4px 12px -2px rgba(15, 23, 42, 0.05),
-    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1.5px 1px 0 rgba(255, 255, 255, 0.4);
+    0 10px 30px -10px rgba(15, 23, 42, 0.1),
+    0 4px 12px -2px rgba(15, 23, 42, 0.05);
   padding: 12px 28px;
 }
 
@@ -142,24 +138,30 @@ body.dark {
   .container {
     padding: 0 16px;
   }
+
   .minimal-navbar {
     padding: 12px 0;
   }
+
   .minimal-navbar.scrolled {
     width: calc(100% - 24px);
     padding: 10px 16px;
     top: 12px;
   }
+
   .minimal-navbar.scrolled .navbar-cta-btn {
     display: none;
   }
+
   .btn-minimal-dark {
     padding: 10px 16px;
     font-size: 13px;
   }
+
   .brand-logo-img {
     height: 36px;
   }
+
   .brand-logo-text {
     font-size: 20px;
   }
@@ -284,12 +286,10 @@ body.dark {
   width: 80%;
   height: 60%;
   transform: translate(-50%, -50%);
-  background: radial-gradient(
-    ellipse at center,
-    rgba(37, 99, 235, 0.15) 0%,
-    rgba(37, 99, 235, 0.06) 40%,
-    transparent 70%
-  );
+  background: radial-gradient(ellipse at center,
+      rgba(37, 99, 235, 0.15) 0%,
+      rgba(37, 99, 235, 0.06) 40%,
+      transparent 70%);
   border-radius: 50%;
   filter: blur(40px);
   z-index: 0;
@@ -298,8 +298,17 @@ body.dark {
 }
 
 @keyframes glowPulse {
-  0%, 100% { opacity: 0.7; transform: translate(-50%, -50%) scale(1); }
-  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
 }
 
 .hero-screenshot-frame {
@@ -325,8 +334,15 @@ body.dark {
 }
 
 @keyframes screenshotFloat {
-  0%, 100% { transform: rotateX(2deg) translateY(0); }
-  50% { transform: rotateX(2deg) translateY(-8px); }
+
+  0%,
+  100% {
+    transform: rotateX(2deg) translateY(0);
+  }
+
+  50% {
+    transform: rotateX(2deg) translateY(-8px);
+  }
 }
 
 .hero-screenshot-img {
@@ -340,12 +356,10 @@ body.dark {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    transparent 85%,
-    rgba(249, 250, 251, 0.6) 100%
-  );
+  background: linear-gradient(to bottom,
+      transparent 0%,
+      transparent 85%,
+      rgba(249, 250, 251, 0.6) 100%);
   border-radius: 16px;
 }
 
@@ -369,23 +383,47 @@ body.dark {
 }
 
 @media (max-width: 1024px) {
-  .hero-screenshot-container { height: 350px; }
-  .hero-screenshot-inner { transform: scale(0.65); width: 153.84%; }
+  .hero-screenshot-container {
+    height: 350px;
+  }
+
+  .hero-screenshot-inner {
+    transform: scale(0.65);
+    width: 153.84%;
+  }
 }
 
 @media (max-width: 860px) {
-  .hero-screenshot-container { height: 280px; }
-  .hero-screenshot-inner { transform: scale(0.52); width: 192.3%; }
+  .hero-screenshot-container {
+    height: 280px;
+  }
+
+  .hero-screenshot-inner {
+    transform: scale(0.52);
+    width: 192.3%;
+  }
 }
 
 @media (max-width: 600px) {
-  .hero-screenshot-container { height: 200px; }
-  .hero-screenshot-inner { transform: scale(0.38); width: 263.15%; }
+  .hero-screenshot-container {
+    height: 200px;
+  }
+
+  .hero-screenshot-inner {
+    transform: scale(0.38);
+    width: 263.15%;
+  }
 }
 
 @media (max-width: 480px) {
-  .hero-screenshot-container { height: 160px; }
-  .hero-screenshot-inner { transform: scale(0.30); width: 333.33%; }
+  .hero-screenshot-container {
+    height: 160px;
+  }
+
+  .hero-screenshot-inner {
+    transform: scale(0.30);
+    width: 333.33%;
+  }
 }
 
 /* Floating Atmosphere Badges */
@@ -424,8 +462,15 @@ body.dark {
 }
 
 @keyframes badgeFloat {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
 }
 
 /* Responsive: badges hidden on smaller screens */
@@ -448,8 +493,15 @@ body.dark {
   }
 
   @keyframes screenshotFloat {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-4px); }
+
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-4px);
+    }
   }
 }
 
@@ -1043,8 +1095,8 @@ html {
   align-items: center;
   padding: 80px 20px 40px 20px;
   background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.1), transparent 40%),
-              radial-gradient(circle at bottom right, rgba(37, 99, 235, 0.05), transparent 40%),
-              rgba(15, 23, 42, 0.03);
+    radial-gradient(circle at bottom right, rgba(37, 99, 235, 0.05), transparent 40%),
+    rgba(15, 23, 42, 0.03);
   position: relative;
   overflow-x: hidden;
   overflow-y: auto;
@@ -1098,7 +1150,7 @@ html {
   border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: 32px;
   padding: 42px 36px;
-  box-shadow: 
+  box-shadow:
     0 30px 60px -15px rgba(15, 23, 42, 0.1),
     inset 0 1px 1px rgba(255, 255, 255, 0.9);
   display: flex;
@@ -1160,7 +1212,7 @@ html {
   gap: 10px;
   background: rgba(255, 255, 255, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.8);
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
   border-radius: 14px;
   padding: 0 14px;
   height: 48px;
@@ -1352,6 +1404,7 @@ html {
 .footer-link {
   transition: color 0.2s ease;
 }
+
 .footer-link:hover {
   color: #0F172A;
 }
@@ -1361,16 +1414,23 @@ html {
   color: #0F172A !important;
 }
 
-.exam-q-label-custom p { margin: 0; padding: 0; display: inline; }
+.exam-q-label-custom p {
+  margin: 0;
+  padding: 0;
+  display: inline;
+}
 
 /* Notifications Dropdown */
 .notifications-dropdown-menu {
-  right: 0; /* Default for desktop: align to right edge of button */
+  right: 0;
+  /* Default for desktop: align to right edge of button */
 }
 
 @media (max-width: 768px) {
   .notifications-dropdown-menu {
-    right: auto; /* Remove right alignment */
-    left: 0;     /* Align to left edge of button on mobile */
+    right: auto;
+    /* Remove right alignment */
+    left: 0;
+    /* Align to left edge of button on mobile */
   }
 }
