@@ -70,12 +70,15 @@ export default function App() {
       if (pendingStr) {
         const pending = JSON.parse(pendingStr);
         if (pending && pending.user_id === userId && pending.test_id) {
-          await supabase.from('test_sessions').insert([{
+          const { error } = await supabase.from('test_sessions').insert([{
             user_id: pending.user_id,
             test_id: pending.test_id,
             score: pending.score,
             completed_at: new Date().toISOString()
           }]);
+          if (error) {
+            console.error('Pending exam submit failed:', error);
+          }
         }
         localStorage.removeItem('pending_exam_submit');
       }

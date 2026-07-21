@@ -391,7 +391,11 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
 
     try {
       if (testId) {
-        await supabase.from('test_sessions').insert([{ user_id: user.id, test_id: testId, score: Number(score.toFixed(1)), completed_at: new Date().toISOString() }]);
+        const { error: insertError } = await supabase.from('test_sessions').insert([{ user_id: user.id, test_id: testId, score: Number(score.toFixed(1)), completed_at: new Date().toISOString() }]);
+        if (insertError) {
+          console.error("Test session saqlash xatosi:", insertError);
+          alert("Natijangiz hisoblandi, lekin bazaga saqlashda xatolik yuz berdi (RLS yoki tarmoq xatosi). Xato: " + insertError.message);
+        }
       }
       setShowReviewModal(false);
 
@@ -428,7 +432,7 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
       setExamResult(resultObj);
     } catch (error) {
       console.error(error);
-      alert('Xatolik yuz berdi');
+      alert('Xatolik yuz berdi: ' + error.message);
       setSubmitting(false);
     }
   };
