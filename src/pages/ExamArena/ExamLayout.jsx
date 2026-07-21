@@ -170,7 +170,12 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
   // Handle page refresh/unload
   useEffect(() => {
     const handleBeforeUnload = (e) => {
-      if (submitting || examResult) return;
+      if (submitting) return;
+
+      if (examResult) {
+        localStorage.setItem('recovered_exam_result', JSON.stringify(examResult));
+        return;
+      }
 
       let score = 0;
       let maxScore = 0;
