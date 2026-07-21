@@ -616,12 +616,12 @@ Please respond in ${lang === 'uz' ? 'Uzbek' : 'Russian'}. You must return a vali
         let finalScore = 75 - ((24 - rawScore) * 2);
         if (finalScore < 0) finalScore = 0;
         
-        jsonResponse.score = \`\${finalScore} / 75 ball\`;
-        jsonResponse.feedback = \`(Aslida \${rawScore}/24 baholangan, tizimga ko'ra \${finalScore} ballga tenglashtirildi)\\n\\n\` + jsonResponse.feedback;
+        jsonResponse.score = `${finalScore} / 75 ball`;
+        jsonResponse.feedback = `(Aslida ${rawScore}/24 baholangan, tizimga ko'ra ${finalScore} ballga tenglashtirildi)\n\n` + jsonResponse.feedback;
       }
     } else if (essayType.startsWith('ielts_') && jsonResponse.score) {
        if (!String(jsonResponse.score).toLowerCase().includes('ielts')) {
-          jsonResponse.score = \`IELTS \${jsonResponse.score}\`;
+          jsonResponse.score = `IELTS ${jsonResponse.score}`;
        }
     }
 
@@ -685,7 +685,60 @@ Respond in ${lang === 'uz' ? 'Uzbek' : 'Russian'} language. You must output vali
   }
 });
 
-const PORT = 3001;
-app.listen(PORT, () => {
-  console.log(`Backend server running on http://localhost:${PORT}`);
+app.post('/api/ai-tutor', async (req, res) => {
+  try {
+    const { history, message, lang, userContext } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    const GROQ_API_KEY = process.env.GROQ_API_KEY;
+    if (!GROQ_API_KEY) {
+      return res.status(500).json({ error: 'GROQ_API_KEY is not set on the server' });
+    }
+
+    const systemPrompt = `You are a friendly and encouraging AI personal tutor for a student preparing for university entrance exams (DTM / Milliy Sertifikat) in Uzbekistan. 
+Respond in ${lang === 'uz' ? 'Uzbek' : 'Russian'}. 
+Help the student solve problems, explain concepts clearly step-by-step, and provide motivation. Do not give just the final answer; guide them to it. Use LaTeX for math.
+Student context: ${userContext ? JSON.stringify(userContext) : 'No context provided'}`;
+
+    const formattedHistory = (history || []).map(msg => ({
+      role: msg.role === 'model' ? 'assistant' : msg.role,
+      content: msg.content
+    }));
+    formattedHistory.push({ role: 'user', content: message });
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        messages: [{ role: 'system', content: systemPrompt }, ...formattedHistory],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.7
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(JSON.stringify(data));
+
+    const reply = data.choices[0].message.content;
+    res.json({ reply });
+
+  } catch (error) {
+    console.error("AI Tutor Error:", error);
+    res.status(500).json({ error: 'Internal server error during AI Tutor response' });
+  }
 });
+
+const PORT = process.env.PORT || 3001;
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Backend server running on http://localhost:${PORT}`);
+  });
+}
+
+export default app;
