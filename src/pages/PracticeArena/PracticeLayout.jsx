@@ -39,7 +39,7 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
           let testMap = new Map();
           let testIds = [];
           if (config.subject) {
-            let queryTests = supabase.from('mock_tests').select('id, subject, exam_system').eq('is_premium', false);
+            let queryTests = supabase.from('mock_tests').select('id, subject, exam_system').eq('is_premium', false).neq('exam_system', 'alevel');
             queryTests = queryTests.or(`subject.ilike.%${config.subject}%,exam_system.eq.dtm`);
             const { data: testData } = await queryTests;
             if (testData && testData.length > 0) {

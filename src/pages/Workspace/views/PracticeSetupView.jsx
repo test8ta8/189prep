@@ -10,7 +10,7 @@ export default function PracticeSetupView({ lang, onStartPractice }) {
 
   useEffect(() => {
     async function fetchCount() {
-      let queryTests = supabase.from('mock_tests').select('id, subject, exam_system').eq('is_premium', false);
+      let queryTests = supabase.from('mock_tests').select('id, subject, exam_system').eq('is_premium', false).neq('exam_system', 'alevel');
       if (subject) {
         queryTests = queryTests.or(`subject.ilike.%${subject}%,exam_system.eq.dtm`);
       }
