@@ -192,11 +192,11 @@ export default function WorkspaceLayout({ user, lang, setLang, onLogout, isAdmin
       case 'bookmarks':
         return <BookmarksView lang={lang} onStartMistakeRetry={onStartMistakeRetry} />;
       case 'progress':
-        return <ProgressView lang={lang} stats={stats} onNavigate={setActiveView} />;
+        return <ProgressView lang={lang} stats={stats} user={user} onNavigate={setActiveView} />;
       case 'ai-tutor':
-        return <AiTutorView lang={lang} onNavigate={setActiveView} />;
+        return <AiTutorView lang={lang} user={user} onNavigate={setActiveView} />;
       case 'essay-review':
-        return <EssayReviewView lang={lang} />;
+        return <EssayReviewView lang={lang} user={user} />;
       case 'pricing':
         return <PricingView lang={lang} />;
       case 'profile':

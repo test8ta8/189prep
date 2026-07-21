@@ -1,34 +1,54 @@
 import React, { useState } from 'react';
 import { PenTool, CheckCircle, AlertTriangle, Sparkles, Send, RefreshCw, Crown, Lock } from 'lucide-react';
 
-export default function EssayReviewView({ lang }) {
+export default function EssayReviewView({ lang, user }) {
   const isUz = lang === 'uz';
+  const hasPremium = user?.subscription_until && new Date(user.subscription_until) > new Date() && user.subscription_tier !== 'free';
   const [topic, setTopic] = useState('');
   const [essay, setEssay] = useState('');
   const [isChecking, setIsChecking] = useState(false);
-  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(!hasPremium);
+  const [feedback, setFeedback] = useState(null);
 
   const wordCount = essay.trim().split(/\s+/).filter(word => word.length > 0).length;
 
-  const handleCheck = () => {
+  const handleCheck = async () => {
     if (wordCount < 50) {
       alert(isUz ? "Iltimos, kamida 50 ta so'z yozing." : "Пожалуйста, напишите минимум 50 слов.");
       return;
     }
     
-    setIsChecking(true);
-    
-    // Simulate AI checking delay before hitting the paywall
-    setTimeout(() => {
-      setIsChecking(false);
+    if (!hasPremium) {
       setShowUpgrade(true);
-    }, 1500);
+      return;
+    }
+
+    setIsChecking(true);
+    setFeedback(null);
+    
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiUrl}/api/grade-essay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic, essay, lang })
+      });
+
+      if (!response.ok) throw new Error('API Error');
+      const data = await response.json();
+      setFeedback(data);
+    } catch (err) {
+      console.error(err);
+      alert(isUz ? "Xatolik yuz berdi" : "Произошла ошибка");
+    } finally {
+      setIsChecking(false);
+    }
   };
 
   const handleReset = () => {
-    setShowUpgrade(false);
     setEssay('');
     setTopic('');
+    setFeedback(null);
   };
 
   return (
@@ -90,7 +110,25 @@ export default function EssayReviewView({ lang }) {
           </div>
 
           <div className="editor-actions">
-            {!showUpgrade ? (
+            {!hasPremium && showUpgrade ? (
+              <button 
+                className="btn-outline-workspace"
+                onClick={() => alert("Ta'riflarni ko'ring")}
+                style={{ width: '100%', padding: '16px', fontSize: '16px', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: '1px solid rgba(15, 23, 42, 0.2)', borderRadius: '12px', color: '#0F172A', fontWeight: '600', cursor: 'pointer' }}
+              >
+                <Lock size={20} />
+                <span>{isUz ? 'Premium sotib olish' : 'Купить Premium'}</span>
+              </button>
+            ) : feedback ? (
+              <button 
+                className="btn-outline-workspace"
+                onClick={handleReset}
+                style={{ width: '100%', padding: '16px', fontSize: '16px', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: '1px solid rgba(15, 23, 42, 0.2)', borderRadius: '12px', color: '#0F172A', fontWeight: '600', cursor: 'pointer' }}
+              >
+                <RefreshCw size={20} />
+                <span>{isUz ? 'Yangi esse yozish' : 'Написать новое эссе'}</span>
+              </button>
+            ) : (
               <button 
                 className={`btn-primary-workspace ${isChecking ? 'checking' : ''}`}
                 onClick={handleCheck}
@@ -109,15 +147,6 @@ export default function EssayReviewView({ lang }) {
                   </>
                 )}
               </button>
-            ) : (
-              <button 
-                className="btn-outline-workspace"
-                onClick={handleReset}
-                style={{ width: '100%', padding: '16px', fontSize: '16px', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: '1px solid rgba(15, 23, 42, 0.2)', borderRadius: '12px', color: '#0F172A', fontWeight: '600', cursor: 'pointer' }}
-              >
-                <RefreshCw size={20} />
-                <span>{isUz ? 'Qayta urinib ko\'rish' : 'Попробовать снова'}</span>
-              </button>
             )}
           </div>
         </div>
@@ -126,7 +155,7 @@ export default function EssayReviewView({ lang }) {
         <div className="essay-feedback-panel glass-panel-padded" style={{ position: 'relative', overflow: 'hidden' }}>
           
           {/* UPGRADE PAYWALL OVERLAY */}
-          {showUpgrade && (
+          {!hasPremium && showUpgrade && (
             <div className="upgrade-overlay fade-in" style={{ position: 'absolute', inset: 0, background: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: '32px', textAlign: 'center' }}>
               <div style={{ background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(59, 130, 246, 0.1))', padding: '24px', borderRadius: '50%', marginBottom: '24px' }}>
                 <Lock size={48} color="#2563EB" />
@@ -139,21 +168,48 @@ export default function EssayReviewView({ lang }) {
                   ? "AI orqali insholarni tekshirish, IELTS darajasidagi ball va xatolarni tahlil qilish faqat Plus ta'rifida mavjud." 
                   : "Проверка эссе с помощью ИИ, оценка уровня IELTS и анализ ошибок доступны только в тарифе Plus."}
               </p>
-              <button 
-                className="btn-primary-workspace" 
-                style={{ width: '100%', maxWidth: '300px', padding: '16px', borderRadius: '14px', background: 'linear-gradient(135deg, #2563EB, #3B82F6)', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 8px 20px rgba(37, 99, 235, 0.25)' }}
-                onClick={() => {
-                  // Simulate navigating to Pricing by dispatching a custom event or just showing an alert for now if no router
-                  alert(isUz ? "Ta'riflar sahifasiga yo'naltirilmoqda..." : "Перенаправление на страницу тарифов...");
-                }}
-              >
-                <Crown size={20} />
-                <span>{isUz ? "Ta'riflarni ko'rish" : "Посмотреть тарифы"}</span>
-              </button>
             </div>
           )}
 
-          {!isChecking ? (
+          {isChecking ? (
+            <div className="feedback-empty" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', textAlign: 'center', padding: '32px' }}>
+              <div className="ai-scanning-anim" style={{ animation: 'pulse 1.5s infinite' }}>
+                <Sparkles size={56} color="#2563EB" />
+              </div>
+              <h3 style={{ fontSize: '20px', fontWeight: '800', color: '#0F172A', marginTop: '24px', marginBottom: '8px' }}>
+                {isUz ? "Sun'iy intellekt tahlil qilmoqda..." : "ИИ анализирует..."}
+              </h3>
+              <p style={{ color: 'rgba(15, 23, 42, 0.5)', fontSize: '15px' }}>
+                {isUz ? "Grammatika, mantiq va tuzilish tekshirilmoqda" : "Проверка грамматики, логики и структуры"}
+              </p>
+            </div>
+          ) : feedback ? (
+            <div className="feedback-results fade-in" style={{ padding: '24px', height: '100%', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid rgba(15, 23, 42, 0.1)' }}>
+                <div style={{ background: '#ECFDF5', color: '#059669', padding: '8px 16px', borderRadius: '12px', fontWeight: 'bold', fontSize: '18px' }}>
+                  {feedback.score}
+                </div>
+                <h3 style={{ margin: 0, fontSize: '18px', color: '#0F172A' }}>{isUz ? "Baholash natijasi" : "Результат оценки"}</h3>
+              </div>
+              <p style={{ fontSize: '15px', lineHeight: '1.6', color: '#334155', marginBottom: '24px' }}>
+                {feedback.feedback}
+              </p>
+              {feedback.mistakes && feedback.mistakes.length > 0 && (
+                <div>
+                  <h4 style={{ fontSize: '16px', fontWeight: '700', color: '#0F172A', marginBottom: '16px' }}>{isUz ? "Xatolar tahlili" : "Анализ ошибок"}</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {feedback.mistakes.map((mistake, idx) => (
+                      <div key={idx} style={{ background: '#FEF2F2', padding: '16px', borderRadius: '12px', border: '1px solid #FECACA' }}>
+                        <div style={{ textDecoration: 'line-through', color: '#EF4444', marginBottom: '4px', fontWeight: '600' }}>{mistake.original}</div>
+                        <div style={{ color: '#059669', marginBottom: '8px', fontWeight: '600' }}>{mistake.correction}</div>
+                        <div style={{ fontSize: '14px', color: '#475569' }}>{mistake.explanation}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
             <div className="feedback-empty" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', textAlign: 'center', padding: '32px' }}>
               <div className="feedback-empty-icon" style={{ background: 'rgba(37, 99, 235, 0.05)', padding: '24px', borderRadius: '50%' }}>
                 <PenTool size={48} color="#2563EB" opacity={0.5} />
@@ -165,18 +221,6 @@ export default function EssayReviewView({ lang }) {
                 {isUz 
                   ? "Essengizni yuboring va darhol IELTS darajasidagi ball, grammatik xatolar tahlili hamda maslahatlar oling."
                   : "Отправьте свое эссе и мгновенно получите оценку уровня IELTS, анализ ошибок и советы."}
-              </p>
-            </div>
-          ) : (
-            <div className="feedback-empty" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', textAlign: 'center', padding: '32px' }}>
-              <div className="ai-scanning-anim" style={{ animation: 'pulse 1.5s infinite' }}>
-                <Sparkles size={56} color="#2563EB" />
-              </div>
-              <h3 style={{ fontSize: '20px', fontWeight: '800', color: '#0F172A', marginTop: '24px', marginBottom: '8px' }}>
-                {isUz ? "Sun'iy intellekt tahlil qilmoqda..." : "ИИ анализирует..."}
-              </h3>
-              <p style={{ color: 'rgba(15, 23, 42, 0.5)', fontSize: '15px' }}>
-                {isUz ? "Grammatika, mantiq va tuzilish tekshirilmoqda" : "Проверка грамматики, логики и структуры"}
               </p>
             </div>
           )}

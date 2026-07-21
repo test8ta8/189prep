@@ -118,17 +118,14 @@ export default function PricingView({ lang }) {
                 </button>
               ) : (
                 <>
-                  <button className="pricing-btn-primary" disabled={paymentComingSoon}>
-                    {paymentComingSoon ? (isUz ? '🔒 Tez orada' : '🔒 Скоро') : 'Payme orqali'}
-                  </button>
-                  <button className="pricing-btn-primary" disabled={paymentComingSoon}>
-                    {paymentComingSoon ? (isUz ? '🔒 Tez orada' : '🔒 Скоро') : 'Click orqali'}
-                  </button>
-                  {paymentComingSoon && (
-                    <p style={{ fontSize: '12px', color: 'rgba(15, 23, 42, 0.5)', textAlign: 'center', margin: '4px 0 0 0', fontWeight: '600' }}>
-                      {isUz ? "To'lov tizimi tez orada ishga tushiriladi" : 'Платежная система скоро будет запущена'}
-                    </p>
-                  )}
+                  <a href="https://t.me/dtm189admin" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'block', width: '100%' }}>
+                    <button className="pricing-btn-primary" style={{ width: '100%', cursor: 'pointer', background: '#2563EB' }}>
+                      {isUz ? "Telegram orqali to'lov (Admin)" : "Оплата через Telegram (Админ)"}
+                    </button>
+                  </a>
+                  <p style={{ fontSize: '12px', color: 'rgba(15, 23, 42, 0.5)', textAlign: 'center', margin: '8px 0 0 0', fontWeight: '600' }}>
+                    {isUz ? "Tugmani bosib, adminga yozing va obunani faollashtiring." : "Нажмите кнопку, напишите админу и активируйте подписку."}
+                  </p>
                 </>
               )}
             </div>

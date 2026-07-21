@@ -531,6 +531,78 @@ Format your response EXACTLY as a JSON object with two keys:
   }
 });
 
+app.post('/api/grade-essay', async (req, res) => {
+  try {
+    const { topic, essay, lang } = req.body;
+
+    if (!essay) {
+      return res.status(400).json({ error: 'Essay is required' });
+    }
+
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    if (!GEMINI_API_KEY) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY is not set on the server' });
+    }
+
+    const prompt = `You are an expert IELTS/CEFR examiner.
+The student has written an essay on the following topic (optional): "${topic || 'No specific topic provided'}"
+The essay is:
+"""
+${essay}
+"""
+
+Evaluate the essay based on grammar, vocabulary, coherence, and task achievement.
+Provide a band score (e.g., CEFR level B1, B2, C1 or IELTS 5.5, 6.0, etc.) and detailed feedback.
+Format your response EXACTLY as a JSON object with these keys:
+{
+  "score": "The estimated band score or level (e.g., 'IELTS 6.5' or 'C1')",
+  "feedback": "Detailed feedback summarizing the strengths and weaknesses of the essay.",
+  "mistakes": [
+    {
+      "original": "The incorrect word or phrase",
+      "correction": "The corrected word or phrase",
+      "explanation": "Why it was wrong"
+    }
+  ]
+}
+
+Please respond in ${lang === 'uz' ? 'Uzbek' : 'Russian'}. Ensure the output is valid JSON.`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`,
+      {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-goog-api-key': GEMINI_API_KEY
+        },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }]
+        })
+      }
+    );
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(JSON.stringify(data));
+
+    const text = data.candidates[0].content.parts[0].text;
+    
+    // Parse the JSON output
+    try {
+      const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const jsonResponse = JSON.parse(cleanedText);
+      res.json(jsonResponse);
+    } catch (parseError) {
+      console.error("Failed to parse Gemini response as JSON:", text);
+      res.json({ score: "N/A", feedback: text, mistakes: [] });
+    }
+
+  } catch (error) {
+    console.error("AI Essay Grading Error:", error);
+    res.status(500).json({ error: 'Internal server error during essay grading' });
+  }
+});
+
 const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`Backend server running on http://localhost:${PORT}`);
