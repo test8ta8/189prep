@@ -48,13 +48,14 @@ export default function NotificationsDropdown({ user, lang }) {
   }, []);
 
   const markAsRead = async () => {
-    setUnreadCount(0);
     const unreadIds = notifications.filter(n => !n.is_read).map(n => n.id);
     if (unreadIds.length > 0) {
+      setUnreadCount(0);
+      setNotifications(notifications.map(n => ({...n, is_read: true})));
       try {
         await supabase.from('notifications').update({ is_read: true }).in('id', unreadIds);
       } catch (e) {
-        // ignore
+        console.error('Error marking notifications as read:', e);
       }
     }
   };
@@ -62,8 +63,6 @@ export default function NotificationsDropdown({ user, lang }) {
   const toggleDropdown = async () => {
     if (!isOpen) {
       await fetchNotifications();
-    } else {
-      markAsRead();
     }
     setIsOpen(!isOpen);
   };
@@ -81,9 +80,17 @@ export default function NotificationsDropdown({ user, lang }) {
       </button>
 
       {isOpen && (
-        <div className="notifications-dropdown-menu" style={{ position: 'absolute', top: '56px', width: '320px', background: 'white', borderRadius: '16px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)', border: '1px solid rgba(15, 23, 42, 0.1)', zIndex: 100 }}>
-          <div style={{ padding: '16px', borderBottom: '1px solid rgba(15, 23, 42, 0.04)' }}>
+        <div className="notifications-dropdown-menu" style={{ position: 'absolute', top: '56px', width: '340px', background: 'white', borderRadius: '16px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)', border: '1px solid rgba(15, 23, 42, 0.1)', zIndex: 100 }}>
+          <div style={{ padding: '16px', borderBottom: '1px solid rgba(15, 23, 42, 0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'bold', color: '#0F172A' }}>{lang === 'uz' ? 'Bildirishnomalar' : 'Уведомления'}</h3>
+            {unreadCount > 0 && (
+              <button 
+                onClick={markAsRead}
+                style={{ background: 'none', border: 'none', color: '#2563EB', fontSize: '13px', fontWeight: '600', cursor: 'pointer', padding: 0 }}
+              >
+                {lang === 'uz' ? 'Barchasini o\'qish' : 'Прочитать все'}
+              </button>
+            )}
           </div>
           <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
             {notifications.length === 0 ? (

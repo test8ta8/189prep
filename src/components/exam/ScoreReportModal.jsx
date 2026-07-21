@@ -17,7 +17,7 @@ export default function ScoreReportModal({ result, onRestart, onExit, user }) {
     });
   }, []);
 
-  const { subject, questions, answers, correctCount, earnedBall, maxBall, timeSpent } = result;
+  const { subject, questions, answers, correctCount, earnedBall, maxBall, timeSpent, testScore, essayScore, essayFeedback } = result;
   const accuracyPercent = Math.round((correctCount / questions.length) * 100) || 0;
 
   const isMilliySertifikat = subject.system === 'milliy_sertifikat';
@@ -118,7 +118,7 @@ export default function ScoreReportModal({ result, onRestart, onExit, user }) {
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px', textAlign: 'center' }}><Clock size={16} /> {timeSpent} sarflandi</span>
           </p>
 
-          <div style={{ margin: '48px 0', display: 'flex', justifyContent: 'center' }}>
+          <div style={{ margin: '48px 0', display: 'flex', justifyContent: 'center', flexDirection: 'column', alignItems: 'center', gap: '24px' }}>
             <div style={{ position: 'relative', width: '180px', height: '180px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'white', borderRadius: '50%', border: '8px solid rgba(15, 23, 42, 0.03)', boxShadow: 'inset 0 0 40px rgba(15, 23, 42, 0.05)' }}>
               <div style={{ position: 'absolute', inset: '-2px', borderRadius: '50%', background: `conic-gradient(#2563EB ${accuracyPercent}%, transparent 0)`, WebkitMask: 'radial-gradient(closest-side, transparent 90%, black 0)' }}></div>
               <span style={{ fontSize: '48px', fontWeight: '900', color: '#0F172A', lineHeight: '1' }}>
@@ -128,6 +128,19 @@ export default function ScoreReportModal({ result, onRestart, onExit, user }) {
                 / {maxBall} BALL
               </span>
             </div>
+
+            {essayScore !== undefined && essayScore !== null && (
+              <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                 <div style={{ background: '#F8FAFC', padding: '16px 24px', borderRadius: '16px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                   <div style={{ fontSize: '13px', color: '#64748B', fontWeight: '600', marginBottom: '4px' }}>Test Bali</div>
+                   <div style={{ fontSize: '24px', color: '#0F172A', fontWeight: 'bold' }}>{testScore} / {maxBall}</div>
+                 </div>
+                 <div style={{ background: '#ECFDF5', padding: '16px 24px', borderRadius: '16px', border: '1px solid #A7F3D0', textAlign: 'center' }}>
+                   <div style={{ fontSize: '13px', color: '#059669', fontWeight: '600', marginBottom: '4px' }}>AI Esse Bali</div>
+                   <div style={{ fontSize: '24px', color: '#10B981', fontWeight: 'bold' }}>{essayScore}</div>
+                 </div>
+              </div>
+            )}
           </div>
 
           <div className="stats-grid" style={{ display: 'grid', gap: '16px', maxWidth: '600px', margin: '0 auto' }}>

@@ -1,21 +1,80 @@
-import React, { useState } from 'react';
-import { Lock, Sparkles, ArrowRight, ArrowLeft, Send, Bot, User } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Lock, Sparkles, ArrowRight, ArrowLeft, Send, Bot, User, Plus, MessageSquare, Trash2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
-export default function AiTutorView({ lang, user, onNavigate }) {
+export default function AiTutorView({ lang, user, stats, onNavigate }) {
   const isUz = lang === 'uz';
   const hasPremium = user?.subscription_until && new Date(user.subscription_until) > new Date() && user.subscription_tier !== 'free';
 
-  const [messages, setMessages] = useState([
-    { role: 'model', content: isUz ? "Salom! Men sizning shaxsiy AI ustozingizman. Qanday savolingiz bor?" : "Привет! Я ваш личный ИИ-наставник. Какой у вас вопрос?" }
-  ]);
+  const STORAGE_KEY = `189prep_ai_chats_${user?.id}`;
+  const initialGreeting = isUz ? "Salom! Men sizning shaxsiy AI ustozingizman. Qanday savolingiz bor?" : "Привет! Я ваш личный ИИ-наставник. Какой у вас вопрос?";
+
+  const [sessions, setSessions] = useState(() => {
+    if (!user) return [];
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.length > 0) return parsed;
+      } catch (e) {
+        console.error("Failed to parse chat sessions", e);
+      }
+    }
+    return [{ id: Date.now().toString(), title: isUz ? "Yangi suhbat" : "Новая беседа", messages: [{ role: 'model', content: initialGreeting }] }];
+  });
+
+  const [activeSessionId, setActiveSessionId] = useState(sessions[0]?.id);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (user && sessions.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+    }
+  }, [sessions, user, STORAGE_KEY]);
+
+  const createNewSession = () => {
+    const newId = Date.now().toString();
+    const newSession = { id: newId, title: isUz ? "Yangi suhbat" : "Новая беседа", messages: [{ role: 'model', content: initialGreeting }] };
+    setSessions([newSession, ...sessions]);
+    setActiveSessionId(newId);
+  };
+
+  const deleteSession = (e, id) => {
+    e.stopPropagation();
+    const updated = sessions.filter(s => s.id !== id);
+    if (updated.length === 0) {
+      const newId = Date.now().toString();
+      const newSession = { id: newId, title: isUz ? "Yangi suhbat" : "Новая беседа", messages: [{ role: 'model', content: initialGreeting }] };
+      setSessions([newSession]);
+      setActiveSessionId(newId);
+    } else {
+      setSessions(updated);
+      if (activeSessionId === id) setActiveSessionId(updated[0].id);
+    }
+  };
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
     
-    const newMessages = [...messages, { role: 'user', content: input }];
-    setMessages(newMessages);
+    const activeSessionIndex = sessions.findIndex(s => s.id === activeSessionId);
+    if (activeSessionIndex === -1) return;
+    
+    const currentSession = sessions[activeSessionIndex];
+    const newMessages = [...currentSession.messages, { role: 'user', content: input }];
+    
+    let title = currentSession.title;
+    if (currentSession.messages.length <= 2 && title === (isUz ? "Yangi suhbat" : "Новая беседа")) {
+       title = input.length > 25 ? input.substring(0, 25) + '...' : input;
+    }
+    
+    const updatedSession = { ...currentSession, title, messages: newMessages };
+    setSessions(prev => {
+      const newArr = [...prev];
+      newArr[activeSessionIndex] = updatedSession;
+      return newArr;
+    });
+    
     setInput('');
     setIsLoading(true);
 
@@ -25,19 +84,36 @@ export default function AiTutorView({ lang, user, onNavigate }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          history: messages,
+          history: currentSession.messages,
           message: input,
-          lang
+          lang,
+          userContext: stats
         })
       });
 
       if (!response.ok) throw new Error('Network response was not ok');
       const data = await response.json();
       
-      setMessages([...newMessages, { role: 'model', content: data.reply }]);
+      setSessions(prev => {
+        const newArr = [...prev];
+        const idx = newArr.findIndex(s => s.id === activeSessionId);
+        if (idx !== -1) {
+          const finalMessages = [...newArr[idx].messages, { role: 'model', content: data.reply }];
+          newArr[idx] = { ...newArr[idx], messages: finalMessages };
+        }
+        return newArr;
+      });
     } catch (error) {
       console.error('Error sending message:', error);
-      setMessages([...newMessages, { role: 'model', content: isUz ? "Kechirasiz, xatolik yuz berdi. Iltimos qaytadan urinib ko'ring." : "Извините, произошла ошибка. Пожалуйста, попробуйте еще раз." }]);
+      setSessions(prev => {
+        const newArr = [...prev];
+        const idx = newArr.findIndex(s => s.id === activeSessionId);
+        if (idx !== -1) {
+          const finalMessages = [...newArr[idx].messages, { role: 'model', content: isUz ? "Kechirasiz, xatolik yuz berdi. Iltimos qaytadan urinib ko'ring." : "Извините, произошла ошибка. Пожалуйста, попробуйте еще раз." }];
+          newArr[idx] = { ...newArr[idx], messages: finalMessages };
+        }
+        return newArr;
+      });
     } finally {
       setIsLoading(false);
     }
@@ -46,32 +122,24 @@ export default function AiTutorView({ lang, user, onNavigate }) {
   if (!hasPremium) {
     return (
       <div className="fade-in" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.5)', backdropFilter: 'blur(8px)' }}>
-        
         <div style={{ maxWidth: '480px', width: '100%', textAlign: 'center', padding: '48px', background: '#FFFFFF', borderRadius: '32px', border: '1px solid rgba(15, 23, 42, 0.1)', boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.1)' }}>
           <div style={{ width: '88px', height: '88px', background: 'rgba(37, 99, 235, 0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 28px auto' }}>
             <Lock size={40} color="#2563EB" />
           </div>
-          
           <h2 style={{ fontSize: '28px', fontWeight: '800', color: '#0F172A', marginBottom: '16px', letterSpacing: '-0.5px' }}>
             {isUz ? 'Pro tarifiga o\'ting' : 'Перейдите на тариф Pro'}
           </h2>
-          
           <p style={{ fontSize: '16px', color: 'rgba(15, 23, 42, 0.6)', marginBottom: '36px', lineHeight: '1.6' }}>
             {isUz 
               ? 'AI Ustoz xizmatidan foydalanish uchun Pro yoki Plus tarifiga obuna bo\'lishingiz kerak. Eng yaxshi natijalarga erishish uchun hoziroq obuna bo\'ling!'
               : 'Для доступа к ИИ-наставнику вам необходим тариф Pro или Plus. Оформите подписку прямо сейчас для достижения лучших результатов!'}
           </p>
-
           <button onClick={() => onNavigate('pricing')} style={{ width: '100%', padding: '16px', background: '#0F172A', color: '#FFFFFF', borderRadius: '16px', border: 'none', fontSize: '16px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s', boxShadow: '0 8px 16px -4px rgba(15, 23, 42, 0.2)' }}>
             <Sparkles size={20} />
             <span>{isUz ? "Ta'riflarni ko'rish" : "Посмотреть тарифы"}</span>
             <ArrowRight size={20} />
           </button>
-
-          <button 
-            onClick={() => onNavigate('dashboard')}
-            style={{ width: '100%', padding: '16px', background: 'transparent', color: 'rgba(15, 23, 42, 0.5)', borderRadius: '16px', border: 'none', fontSize: '15px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s', marginTop: '12px' }}
-          >
+          <button onClick={() => onNavigate('dashboard')} style={{ width: '100%', padding: '16px', background: 'transparent', color: 'rgba(15, 23, 42, 0.5)', borderRadius: '16px', border: 'none', fontSize: '15px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s', marginTop: '12px' }}>
             <ArrowLeft size={18} />
             <span>{isUz ? 'Bosh sahifaga qaytish' : 'Вернуться на главную'}</span>
           </button>
@@ -80,74 +148,119 @@ export default function AiTutorView({ lang, user, onNavigate }) {
     );
   }
 
-  return (
-    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)', padding: '24px', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
-      <header style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <div style={{ width: '48px', height: '48px', background: 'linear-gradient(135deg, #2563EB, #3B82F6)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-          <Bot size={24} />
-        </div>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: '800', color: '#0F172A' }}>{isUz ? 'AI Ustoz' : 'ИИ Наставник'}</h1>
-          <p style={{ margin: 0, color: '#64748B', fontSize: '14px' }}>{isUz ? "Savollaringizni bering va batafsil tushuntirishlar oling." : "Задавайте вопросы и получайте подробные объяснения."}</p>
-        </div>
-      </header>
+  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
 
-      <div style={{ flex: 1, background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {messages.map((msg, idx) => (
-            <div key={idx} style={{ display: 'flex', gap: '12px', alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
+  return (
+    <div className="fade-in" style={{ display: 'flex', height: 'calc(100vh - 60px)', maxWidth: '1200px', margin: '0 auto', width: '100%', padding: '24px', gap: '24px' }}>
+      
+      {/* Sidebar for Chat History */}
+      <div style={{ width: '280px', background: '#FFFFFF', borderRadius: '20px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
+        <div style={{ padding: '20px' }}>
+          <button 
+            onClick={createNewSession}
+            style={{ width: '100%', padding: '12px', background: '#2563EB', color: 'white', borderRadius: '12px', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}
+          >
+            <Plus size={18} />
+            {isUz ? 'Yangi chat' : 'Новый чат'}
+          </button>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px 20px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ padding: '0 8px', marginBottom: '8px', fontSize: '12px', fontWeight: '700', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            {isUz ? 'Tarix' : 'История'}
+          </div>
+          {sessions.map(session => (
+            <div 
+              key={session.id}
+              onClick={() => setActiveSessionId(session.id)}
+              style={{ padding: '12px', borderRadius: '12px', background: activeSessionId === session.id ? '#EFF6FF' : 'transparent', color: activeSessionId === session.id ? '#1E3A8A' : '#475569', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', transition: 'all 0.2s', border: '1px solid', borderColor: activeSessionId === session.id ? '#BFDBFE' : 'transparent' }}
+            >
+              <MessageSquare size={16} style={{ flexShrink: 0, color: activeSessionId === session.id ? '#3B82F6' : '#94A3B8' }} />
+              <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '14px', fontWeight: activeSessionId === session.id ? '600' : '500' }}>
+                {session.title}
+              </div>
+              <div 
+                onClick={(e) => deleteSession(e, session.id)}
+                style={{ cursor: 'pointer', color: '#94A3B8', padding: '4px', borderRadius: '4px' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = '#EF4444'}
+                onMouseLeave={(e) => e.currentTarget.style.color = '#94A3B8'}
+              >
+                <Trash2 size={14} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Main Chat Area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#FFFFFF', borderRadius: '20px', border: '1px solid #E2E8F0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
+        <header style={{ padding: '20px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: '12px', background: '#F8FAFC' }}>
+          <div style={{ width: '44px', height: '44px', background: 'linear-gradient(135deg, #2563EB, #3B82F6)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+            <Bot size={22} />
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#0F172A' }}>{isUz ? 'AI Ustoz' : 'ИИ Наставник'}</h1>
+            <p style={{ margin: 0, color: '#64748B', fontSize: '13px' }}>{activeSession?.title}</p>
+          </div>
+        </header>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {activeSession?.messages.map((msg, idx) => (
+            <div key={idx} style={{ display: 'flex', gap: '12px', alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
               {msg.role === 'model' && (
-                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB', flexShrink: 0 }}>
-                  <Bot size={18} />
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB', flexShrink: 0 }}>
+                  <Bot size={20} />
                 </div>
               )}
               <div style={{ 
                 background: msg.role === 'user' ? '#2563EB' : '#F1F5F9', 
                 color: msg.role === 'user' ? 'white' : '#0F172A',
-                padding: '12px 16px',
-                borderRadius: '16px',
-                borderTopRightRadius: msg.role === 'user' ? '4px' : '16px',
-                borderTopLeftRadius: msg.role === 'model' ? '4px' : '16px',
+                padding: '16px 20px',
+                borderRadius: '20px',
+                borderTopRightRadius: msg.role === 'user' ? '4px' : '20px',
+                borderTopLeftRadius: msg.role === 'model' ? '4px' : '20px',
                 fontSize: '15px',
-                lineHeight: '1.5'
+                lineHeight: '1.6',
+                boxShadow: msg.role === 'model' ? 'none' : '0 4px 6px -1px rgba(37, 99, 235, 0.2)'
               }}>
-                {msg.content}
+                <div className="markdown-body" style={{ margin: 0, padding: 0 }}>
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                </div>
               </div>
               {msg.role === 'user' && (
-                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', flexShrink: 0 }}>
-                  <User size={18} />
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#F8FAFC', border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', flexShrink: 0 }}>
+                  <User size={20} />
                 </div>
               )}
             </div>
           ))}
           {isLoading && (
             <div style={{ display: 'flex', gap: '12px', alignSelf: 'flex-start' }}>
-              <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB' }}>
-                <Bot size={18} />
+              <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB' }}>
+                <Bot size={20} />
               </div>
-              <div style={{ background: '#F1F5F9', padding: '12px 16px', borderRadius: '16px', borderTopLeftRadius: '4px', display: 'flex', gap: '4px', alignItems: 'center' }}>
-                <div className="typing-dot" style={{ width: '6px', height: '6px', background: '#94A3B8', borderRadius: '50%', animation: 'typing 1.4s infinite ease-in-out' }}></div>
-                <div className="typing-dot" style={{ width: '6px', height: '6px', background: '#94A3B8', borderRadius: '50%', animation: 'typing 1.4s infinite ease-in-out 0.2s' }}></div>
-                <div className="typing-dot" style={{ width: '6px', height: '6px', background: '#94A3B8', borderRadius: '50%', animation: 'typing 1.4s infinite ease-in-out 0.4s' }}></div>
+              <div style={{ background: '#F1F5F9', padding: '16px 20px', borderRadius: '20px', borderTopLeftRadius: '4px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <div className="typing-dot" style={{ width: '8px', height: '8px', background: '#94A3B8', borderRadius: '50%', animation: 'typing 1.4s infinite ease-in-out' }}></div>
+                <div className="typing-dot" style={{ width: '8px', height: '8px', background: '#94A3B8', borderRadius: '50%', animation: 'typing 1.4s infinite ease-in-out 0.2s' }}></div>
+                <div className="typing-dot" style={{ width: '8px', height: '8px', background: '#94A3B8', borderRadius: '50%', animation: 'typing 1.4s infinite ease-in-out 0.4s' }}></div>
               </div>
             </div>
           )}
         </div>
 
-        <div style={{ padding: '16px', borderTop: '1px solid #E2E8F0', background: '#F8FAFC' }}>
-          <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ padding: '20px', borderTop: '1px solid #E2E8F0', background: '#FFFFFF' }}>
+          <div style={{ display: 'flex', gap: '12px', background: '#F8FAFC', padding: '8px', borderRadius: '16px', border: '1px solid #E2E8F0' }}>
             <input 
               type="text" 
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-              placeholder={isUz ? "Xabaringizni yozing..." : "Напишите сообщение..."}
-              style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: '1px solid #CBD5E1', outline: 'none', fontSize: '15px' }}
+              placeholder={isUz ? "AI Ustozga savol bering..." : "Задайте вопрос ИИ-наставнику..."}
+              style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: 'none', outline: 'none', background: 'transparent', fontSize: '15px' }}
             />
             <button 
               onClick={sendMessage}
               disabled={!input.trim() || isLoading}
-              style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#2563EB', color: 'white', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: input.trim() && !isLoading ? 'pointer' : 'not-allowed', opacity: input.trim() && !isLoading ? 1 : 0.5 }}
+              style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#2563EB', color: 'white', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: input.trim() && !isLoading ? 'pointer' : 'not-allowed', opacity: input.trim() && !isLoading ? 1 : 0.5, transition: 'all 0.2s' }}
             >
               <Send size={20} />
             </button>

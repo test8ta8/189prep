@@ -224,7 +224,9 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
           {/* Real Turnstile Badge */}
           <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0 16px 0' }}>
             <Turnstile
-              siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'}
+              siteKey={(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
+                ? '1x00000000000000000000AA' 
+                : (import.meta.env.VITE_TURNSTILE_SITE_KEY || '1x00000000000000000000AA')}
               onSuccess={(token) => {
                 setTurnstileToken(token);
                 setError(null);

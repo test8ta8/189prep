@@ -414,48 +414,51 @@ app.post('/api/payment/callback', async (req, res) => {
 
 app.post('/api/ai-tutor', async (req, res) => {
   try {
-    const { history, message, lang } = req.body;
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-    if (!GEMINI_API_KEY) {
-      return res.status(500).json({ error: 'GEMINI_API_KEY is not set on the server' });
+    const { history, message, lang, userContext } = req.body;
+    const GROQ_API_KEY = process.env.GROQ_API_KEY;
+    if (!GROQ_API_KEY) {
+      return res.status(500).json({ error: 'GROQ_API_KEY is not set on the server' });
     }
+
+    const contextStr = userContext ? `\n\nStudent Progress Context:\n${JSON.stringify(userContext)}` : '';
 
     const systemPrompt = `You are an AI Tutor for a test preparation app called 189PREP.
 You help students understand their mistakes and explain concepts clearly.
+${contextStr}
 Respond in ${lang === 'uz' ? 'Uzbek' : 'Russian'}. Keep it concise, helpful, and use simple markdown (**bold** for emphasis, no complex html).`;
 
-    const contents = (history || []).map(msg => ({
-      role: msg.role === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.content }]
-    }));
+    const validHistory = (history || []).filter((msg, idx) => !(idx === 0 && msg.role === 'model'));
 
-    contents.push({
-      role: 'user',
-      parts: [{ text: message }]
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...validHistory.map(msg => ({
+        role: msg.role === 'model' ? 'assistant' : 'user',
+        content: msg.content
+      })),
+      { role: 'user', content: message }
+    ];
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        messages,
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.7,
+        max_tokens: 1024
+      })
     });
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent`,
-      {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_API_KEY
-        },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: contents
-        })
-      }
-    );
 
     const data = await response.json();
     if (!response.ok) throw new Error(JSON.stringify(data));
 
-    const reply = data.candidates[0].content.parts[0].text;
+    const reply = data.choices[0].message.content;
     res.json({ reply });
   } catch (error) {
-    console.error(error);
+    console.error("AI Tutor Error:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -533,73 +536,152 @@ Format your response EXACTLY as a JSON object with two keys:
 
 app.post('/api/grade-essay', async (req, res) => {
   try {
-    const { topic, essay, lang } = req.body;
+    const { topic, essay, lang, essayType } = req.body;
 
     if (!essay) {
       return res.status(400).json({ error: 'Essay is required' });
     }
 
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-    if (!GEMINI_API_KEY) {
-      return res.status(500).json({ error: 'GEMINI_API_KEY is not set on the server' });
+    const GROQ_API_KEY = process.env.GROQ_API_KEY;
+    if (!GROQ_API_KEY) {
+      return res.status(500).json({ error: 'GROQ_API_KEY is not set on the server' });
     }
 
-    const prompt = `You are an expert IELTS/CEFR examiner.
+    let criteriaPrompt = '';
+    if (essayType === 'ielts_task1') {
+      criteriaPrompt = `Evaluate the essay STRICTLY based on the official IELTS Writing Task 1 Band Descriptors: Task Achievement, Coherence & Cohesion, Lexical Resource, Grammatical Range & Accuracy. Provide a band score from 1.0 to 9.0 (e.g., '6.5').`;
+    } else if (essayType === 'ielts_task2') {
+      criteriaPrompt = `Evaluate the essay STRICTLY based on the official IELTS Writing Task 2 Band Descriptors: Task Response, Coherence & Cohesion, Lexical Resource, Grammatical Range & Accuracy. Provide a band score from 1.0 to 9.0 (e.g., '7.0').`;
+    } else if (essayType === 'onatili') {
+      criteriaPrompt = `Evaluate the essay based on the Uzbekistan National Certificate (Milliy Sertifikat) criteria for Native Language. You must grade out of 24 points total based on: Imlo (Spelling), Punktuatsiya (Punctuation), Uslub (Style), and Fikrning mantiqiyligi (Logic). Your score MUST be a number out of 24 (e.g., '21.5', '18').`;
+    } else if (essayType === 'university') {
+      criteriaPrompt = `Evaluate the essay based on University Admission and Academic standards: Thesis clarity, Argumentation, Structure, and Academic vocabulary. Provide a grade or score fitting for university admissions (e.g., 'Strong', 'Acceptable', 'Needs Improvement').`;
+    } else {
+      criteriaPrompt = `Evaluate the essay based on grammar, vocabulary, coherence, and task achievement.`;
+    }
+
+    const systemPrompt = `You are an expert examiner.
 The student has written an essay on the following topic (optional): "${topic || 'No specific topic provided'}"
 The essay is:
 """
 ${essay}
 """
 
-Evaluate the essay based on grammar, vocabulary, coherence, and task achievement.
-Provide a band score (e.g., CEFR level B1, B2, C1 or IELTS 5.5, 6.0, etc.) and detailed feedback.
+${criteriaPrompt}
+
 Format your response EXACTLY as a JSON object with these keys:
 {
-  "score": "The estimated band score or level (e.g., 'IELTS 6.5' or 'C1')",
-  "feedback": "Detailed feedback summarizing the strengths and weaknesses of the essay.",
+  "score": "The estimated score (For Ona tili, MUST be a number out of 24 like '18.5')",
+  "feedback": "Detailed feedback summarizing strengths and weaknesses.",
   "mistakes": [
     {
-      "original": "The incorrect word or phrase",
-      "correction": "The corrected word or phrase",
+      "original": "incorrect word/phrase",
+      "correction": "corrected word/phrase",
       "explanation": "Why it was wrong"
     }
   ]
 }
 
-Please respond in ${lang === 'uz' ? 'Uzbek' : 'Russian'}. Ensure the output is valid JSON.`;
+Please respond in ${lang === 'uz' ? 'Uzbek' : 'Russian'}. You must return a valid JSON object.`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`,
-      {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_API_KEY
-        },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }]
-        })
-      }
-    );
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        messages: [{ role: 'system', content: systemPrompt }],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.2,
+        response_format: { type: "json_object" }
+      })
+    });
 
     const data = await response.json();
     if (!response.ok) throw new Error(JSON.stringify(data));
 
-    const text = data.candidates[0].content.parts[0].text;
-    
-    // Parse the JSON output
-    try {
-      const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      const jsonResponse = JSON.parse(cleanedText);
-      res.json(jsonResponse);
-    } catch (parseError) {
-      console.error("Failed to parse Gemini response as JSON:", text);
-      res.json({ score: "N/A", feedback: text, mistakes: [] });
+    const text = data.choices[0].message.content;
+    const jsonResponse = JSON.parse(text);
+
+    // Ona tili score mapping (24 -> 75)
+    if (essayType === 'onatili' && jsonResponse.score) {
+      // Extract numeric value from "18.5" or "18.5/24"
+      const rawMatch = String(jsonResponse.score).match(/([0-9]+[\.,]?[0-9]*)/);
+      if (rawMatch) {
+        let rawScore = parseFloat(rawMatch[0].replace(',', '.'));
+        if (rawScore > 24) rawScore = 24;
+        
+        // Formula: 75 - ((24 - rawScore) * 2)
+        let finalScore = 75 - ((24 - rawScore) * 2);
+        if (finalScore < 0) finalScore = 0;
+        
+        jsonResponse.score = \`\${finalScore} / 75 ball\`;
+        jsonResponse.feedback = \`(Aslida \${rawScore}/24 baholangan, tizimga ko'ra \${finalScore} ballga tenglashtirildi)\\n\\n\` + jsonResponse.feedback;
+      }
+    } else if (essayType.startsWith('ielts_') && jsonResponse.score) {
+       if (!String(jsonResponse.score).toLowerCase().includes('ielts')) {
+          jsonResponse.score = \`IELTS \${jsonResponse.score}\`;
+       }
     }
+
+    res.json(jsonResponse);
 
   } catch (error) {
     console.error("AI Essay Grading Error:", error);
     res.status(500).json({ error: 'Internal server error during essay grading' });
+  }
+});
+
+app.post('/api/analyze-progress', async (req, res) => {
+  try {
+    const { testHistory, lang } = req.body;
+    
+    if (!testHistory || testHistory.length === 0) {
+      return res.json({ analysis: lang === 'uz' ? "Test natijalari yetarli emas." : "Недостаточно результатов тестов." });
+    }
+
+    const GROQ_API_KEY = process.env.GROQ_API_KEY;
+    if (!GROQ_API_KEY) {
+      return res.status(500).json({ error: 'GROQ_API_KEY is not set on the server' });
+    }
+
+    const systemPrompt = `You are an AI Analyst for an exam prep app. 
+Analyze the student's recent test history and identify their weakest subjects or topics.
+Test history data:
+${JSON.stringify(testHistory)}
+
+Write a professional, encouraging paragraph analyzing their weaknesses and giving 1-2 actionable tips on what to study next.
+Format your response EXACTLY as a JSON object:
+{
+  "analysis": "Your detailed feedback paragraph"
+}
+Respond in ${lang === 'uz' ? 'Uzbek' : 'Russian'} language. You must output valid JSON.`;
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        messages: [{ role: 'system', content: systemPrompt }],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.5,
+        response_format: { type: "json_object" }
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(JSON.stringify(data));
+
+    const text = data.choices[0].message.content;
+    const jsonResponse = JSON.parse(text);
+    res.json(jsonResponse);
+
+  } catch (error) {
+    console.error("AI Progress Analysis Error:", error);
+    res.status(500).json({ error: 'Internal server error during progress analysis' });
   }
 });
 

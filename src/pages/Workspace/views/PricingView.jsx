@@ -118,7 +118,7 @@ export default function PricingView({ lang }) {
                 </button>
               ) : (
                 <>
-                  <a href="https://t.me/dtm189admin" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'block', width: '100%' }}>
+                  <a href="https://t.me/maxmuraliyev" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'block', width: '100%' }}>
                     <button className="pricing-btn-primary" style={{ width: '100%', cursor: 'pointer', background: '#2563EB' }}>
                       {isUz ? "Telegram orqali to'lov (Admin)" : "Оплата через Telegram (Админ)"}
                     </button>

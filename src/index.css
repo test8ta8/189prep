@@ -1433,3 +1433,11 @@ html {
     /* Align to left edge of button on mobile */
   }
 }
+.markdown-body p { margin-bottom: 0.5rem; }
+.markdown-body ul { padding-left: 1.5rem; list-style-type: disc; margin-bottom: 0.5rem; }
+.markdown-body strong { font-weight: bold; }
+
+
+.markdown-body p { margin-bottom: 0.5rem; }
+.markdown-body ul { padding-left: 1.5rem; list-style-type: disc; margin-bottom: 0.5rem; }
+.markdown-body strong { font-weight: bold; }

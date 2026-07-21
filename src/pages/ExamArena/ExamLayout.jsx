@@ -46,6 +46,9 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
   const [allALevelQuestions, setAllALevelQuestions] = useState([]);
   const [isAiGrading, setIsAiGrading] = useState(false);
 
+  // Essay Specific State
+  // Essay logic handled dynamically via question_type === 'essay'
+
   // Fetch test and questions
   useEffect(() => {
     async function loadData() {
@@ -376,7 +379,9 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
         else if (idx < 60) questionPoints = 3.1;
         else questionPoints = 2.1;
       }
-      maxScore += questionPoints;
+      if (q.question_type !== 'essay') {
+        maxScore += questionPoints;
+      }
 
       if (q.question_type === 'written') {
         const userAns = (answers[q.id] || '').toString().trim().toLowerCase();
@@ -386,7 +391,7 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
           score += questionPoints;
           correctAnswersCount++;
         }
-      } else {
+      } else if (q.question_type !== 'essay') {
         if (answers[q.id] === q.correct_option_index) {
           score += questionPoints;
           correctAnswersCount++;
@@ -394,9 +399,57 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
       }
     });
 
+    let finalTestScore = score;
+    let finalMaxScore = maxScore;
+    
+    if (testInfo?.exam_system === 'milliy_sertifikat' && maxScore > 0) {
+      finalTestScore = Number(((score / maxScore) * 75).toFixed(1));
+      finalMaxScore = 75;
+    }
+
+    let essayScore = null;
+    let finalCalculatedScore = Number(finalTestScore.toFixed(1));
+    let essayFeedbackData = null;
+
+    const essayQuestion = questions.find(q => q.question_type === 'essay');
+    const essayAnswerText = essayQuestion ? (answers[essayQuestion.id] || '') : '';
+
+    if (essayQuestion && essayAnswerText.trim().length > 30) {
+      setIsAiGrading(true);
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const response = await fetch(`${apiUrl}/api/grade-essay`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            topic: essayQuestion.text || 'Mavzu kiritilmagan', 
+            essay: essayAnswerText, 
+            lang: 'uz', 
+            essayType: testInfo?.exam_system === 'ielts' ? 'ielts_task2' : 'onatili' 
+          })
+        });
+        const data = await response.json();
+        essayFeedbackData = data;
+        if (data.score) {
+           const match = String(data.score).match(/([0-9]+[\.,]?[0-9]*)/);
+           if (match) {
+             essayScore = parseFloat(match[0].replace(',', '.'));
+           }
+        }
+      } catch (err) {
+        console.error("Essay grading error:", err);
+      } finally {
+        setIsAiGrading(false);
+      }
+    }
+
+    if (essayScore !== null) {
+      finalCalculatedScore = Number(((finalTestScore + essayScore) / 2).toFixed(1));
+    }
+
     try {
       if (testId) {
-        const { error: insertError } = await supabase.from('test_sessions').insert([{ user_id: user.id, test_id: testId, score: Number(score.toFixed(1)), completed_at: new Date().toISOString() }]);
+        const { error: insertError } = await supabase.from('test_sessions').insert([{ user_id: user.id, test_id: testId, score: finalCalculatedScore, completed_at: new Date().toISOString() }]);
         if (insertError) {
           console.error("Test session saqlash xatosi:", insertError);
           alert("Natijangiz hisoblandi, lekin bazaga saqlashda xatolik yuz berdi (RLS yoki tarmoq xatosi). Xato: " + insertError.message);
@@ -429,9 +482,12 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
           })
         ),
         correctCount: correctAnswersCount,
-        earnedBall: Number(score.toFixed(1)),
-        maxBall: Number(maxScore.toFixed(1)),
-        timeSpent: formatTime(timeSpentSecs)
+        earnedBall: finalCalculatedScore,
+        maxBall: Number(finalMaxScore.toFixed(1)),
+        timeSpent: formatTime(timeSpentSecs),
+        testScore: Number(finalTestScore.toFixed(1)),
+        essayScore: essayScore,
+        essayFeedback: essayFeedbackData
       };
 
       setExamResult(resultObj);
@@ -723,25 +779,55 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
                 )}
 
                 {/* Question Card */}
-                <div className="exam-question-card">
-                  <div className="exam-q-header">
+                {currentQ && (
+                  <div className={`exam-question-card ${currentQ.question_type === 'essay' ? 'essay-card' : ''}`} style={currentQ.question_type === 'essay' ? { border: '2px solid #8B5CF6' } : {}}>
+                  <div className="exam-q-header" style={currentQ.question_type === 'essay' ? { marginBottom: '16px' } : {}}>
                     <div className="exam-q-tags">
-                      <span className="exam-tag-q">Q{currentIndex + 1}</span>
-                      <span className="exam-tag-type">{currentQ.question_type === 'written' ? 'Yozma javob' : 'Bir javobli'}</span>
+                      <span className="exam-tag-q" style={currentQ.question_type === 'essay' ? { background: '#8B5CF6', color: 'white' } : {}}>
+                        {currentQ.question_type === 'essay' ? 'Esse Yozish' : `Q${currentIndex + 1}`}
+                      </span>
+                      {currentQ.question_type !== 'essay' && (
+                        <span className="exam-tag-type">{currentQ.question_type === 'written' ? 'Yozma javob' : 'Bir javobli'}</span>
+                      )}
                     </div>
-                    <button className="exam-bookmark-btn" onClick={() => toggleBookmark(currentQ.id)}>
-                      <Bookmark size={16} fill={bookmarks.has(currentQ.id) ? "currentColor" : "none"} />
-                      Eslatmaga qo'shish
-                    </button>
+                    {currentQ.question_type === 'essay' && (
+                      <span style={{ fontSize: '13px', color: '#64748B', fontWeight: '500' }}>Yakuniy Bosqich</span>
+                    )}
+                    {currentQ.question_type !== 'essay' && (
+                      <button className="exam-bookmark-btn" onClick={() => toggleBookmark(currentQ.id)}>
+                        <Bookmark size={16} fill={bookmarks.has(currentQ.id) ? "currentColor" : "none"} />
+                        Eslatmaga qo'shish
+                      </button>
+                    )}
                   </div>
 
-                  <HighlightableText text={currentQ.text} id={currentQ.id} className="exam-q-text" />
+                  {currentQ.question_type === 'essay' ? (
+                    <>
+                      <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#0F172A', marginBottom: '8px' }}>
+                        Mavzu: {currentQ.text}
+                      </h3>
+                      <p style={{ fontSize: '14px', color: '#64748B', marginBottom: '16px' }}>
+                        Fikringizni erkin bayon qiling. Imtihonni yakunlaganingizda ushbu esse AI tomonidan baholanadi va umumiy ballingizga qo'shiladi.
+                      </p>
+                    </>
+                  ) : (
+                    <HighlightableText text={currentQ.text} id={currentQ.id} className="exam-q-text" />
+                  )}
 
                   {currentQ.image_url && (
                     <img src={currentQ.image_url} alt="Savol rasmi" className="exam-q-image" />
                   )}
 
-                  {currentQ.question_type === 'written' ? (
+                  {currentQ.question_type === 'essay' ? (
+                    <div className="exam-written-answer">
+                      <textarea
+                        placeholder="Esse matnini shu yerga yozing..."
+                        value={answers[currentQ.id] || ''}
+                        onChange={(e) => setAnswers(prev => ({ ...prev, [currentQ.id]: e.target.value }))}
+                        style={{ width: '100%', minHeight: '300px', padding: '16px', borderRadius: '12px', border: '1px solid rgba(139, 92, 246, 0.3)', fontSize: '15px', color: '#0F172A', outline: 'none', resize: 'vertical' }}
+                      />
+                    </div>
+                  ) : currentQ.question_type === 'written' ? (
                     <div className="exam-written-answer">
                       <textarea
                         placeholder="Javobingizni shu yerga kiriting..."
@@ -774,6 +860,7 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
                     </div>
                   )}
                 </div>
+              )}
 
                 <div className="exam-controls">
                   <button
@@ -789,7 +876,7 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
                     disabled={currentIndex === questions.length - 1}
                     onClick={() => setCurrentIndex(prev => prev + 1)}
                   >
-                    Keyingi savol <ChevronRight size={16} />
+                    Keyingi <ChevronRight size={16} />
                   </button>
                   
                   <button 

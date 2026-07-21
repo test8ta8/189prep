@@ -4,6 +4,7 @@ import { PenTool, CheckCircle, AlertTriangle, Sparkles, Send, RefreshCw, Crown, 
 export default function EssayReviewView({ lang, user }) {
   const isUz = lang === 'uz';
   const hasPremium = user?.subscription_until && new Date(user.subscription_until) > new Date() && user.subscription_tier !== 'free';
+  const [essayType, setEssayType] = useState('ielts_task2');
   const [topic, setTopic] = useState('');
   const [essay, setEssay] = useState('');
   const [isChecking, setIsChecking] = useState(false);
@@ -31,7 +32,7 @@ export default function EssayReviewView({ lang, user }) {
       const response = await fetch(`${apiUrl}/api/grade-essay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic, essay, lang })
+        body: JSON.stringify({ topic, essay, lang, essayType })
       });
 
       if (!response.ok) throw new Error('API Error');
@@ -75,6 +76,23 @@ export default function EssayReviewView({ lang, user }) {
       <div className="essay-layout">
         {/* Editor Side */}
         <div className="essay-editor-panel glass-panel-padded">
+          <div className="editor-group" style={{ marginBottom: '16px' }}>
+            <label className="editor-label" style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#0F172A', marginBottom: '8px' }}>
+              {isUz ? 'Esse turi' : 'Тип эссе'}
+            </label>
+            <select
+              value={essayType}
+              onChange={(e) => setEssayType(e.target.value)}
+              disabled={isChecking || showUpgrade}
+              style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid rgba(15, 23, 42, 0.1)', fontSize: '15px', outline: 'none', background: '#F8FAFC', cursor: 'pointer', appearance: 'none' }}
+            >
+              <option value="ielts_task1">IELTS Task 1 (Band 1.0 - 9.0)</option>
+              <option value="ielts_task2">IELTS Task 2 (Band 1.0 - 9.0)</option>
+              <option value="onatili">Ona tili (Milliy Sertifikat - 75 ball)</option>
+              <option value="university">University Essay (Admission)</option>
+            </select>
+          </div>
+
           <div className="editor-group" style={{ marginBottom: '16px' }}>
             <label className="editor-label" style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#0F172A', marginBottom: '8px' }}>
               {isUz ? 'Esse mavzusi (ixtiyoriy)' : 'Тема эссе (необязательно)'}

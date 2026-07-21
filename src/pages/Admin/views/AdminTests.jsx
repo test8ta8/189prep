@@ -87,7 +87,7 @@ export default function AdminTests() {
       setIsModalOpen(false);
       setEditingTestId(null);
       fetchTests();
-      setFormData({ title: '', subject: '', dtm_main1: '', dtm_main2: '', duration_minutes: 180, question_count: 90, is_premium: false, available_from: '', available_until: '', exam_system: 'dtm', paper_number: '', variant_name: '' });
+      setFormData({ title: '', subject: '', dtm_main1: '', dtm_main2: '', duration_minutes: 180, question_count: 90, is_premium: false, available_from: '', available_until: '', exam_system: 'dtm', paper_number: '', variant_name: '', essay_topic: '' });
     } catch (err) {
       alert('Xatolik: ' + err.message);
     }

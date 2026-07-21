@@ -718,6 +718,7 @@ export default function AdminQuestionsManager({ test, onBack }) {
                     <option value="mcq">Variantli (A,B,C,D)</option>
                     <option value="written">Yozma javob (Ochiq savol)</option>
                     <option value="matching">Moslashtirish (A-F)</option>
+                    <option value="essay">Esse yozish (AI orqali baholanadi)</option>
                   </select>
                 </div>
               </div>
@@ -746,7 +747,7 @@ export default function AdminQuestionsManager({ test, onBack }) {
                 </div>
               </div>
 
-              {editingQuestion.question_type !== 'written' && (
+              {editingQuestion.question_type !== 'written' && editingQuestion.question_type !== 'essay' && (
               <div>
                 <label style={{ display: 'block', color: 'rgba(15, 23, 42, 0.6)', marginBottom: '8px', fontSize: '14px' }}>Variantlar {editingQuestion.question_type === 'matching' ? '(A-F)' : ''}</label>
                 {editingQuestion.options.map((opt, idx) => (
@@ -771,6 +772,12 @@ export default function AdminQuestionsManager({ test, onBack }) {
                     />
                   </div>
                 ))}
+              </div>
+              )}
+              
+              {editingQuestion.question_type === 'essay' && (
+              <div style={{ background: '#ECFDF5', border: '1px solid #10B981', padding: '12px', borderRadius: '8px', color: '#047857', fontSize: '13px' }}>
+                <strong>Esse Savoli:</strong> O'quvchi bu savolga duch kelganda maxsus esse yozish maydoni ochiladi. Siz "Savol matni" ga esse mavzusini yozishingiz kifoya.
               </div>
               )}
               

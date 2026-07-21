@@ -38,7 +38,8 @@ import {
   Moon,
   Sun,
   ChevronDown,
-  Edit3
+  Edit3,
+  Crown
 } from 'lucide-react';
 import DashboardView from './views/DashboardView';
 import ProfileView from './views/ProfileView';
@@ -194,7 +195,7 @@ export default function WorkspaceLayout({ user, lang, setLang, onLogout, isAdmin
       case 'progress':
         return <ProgressView lang={lang} stats={stats} user={user} onNavigate={setActiveView} />;
       case 'ai-tutor':
-        return <AiTutorView lang={lang} user={user} onNavigate={setActiveView} />;
+        return <AiTutorView lang={lang} user={user} stats={stats} onNavigate={setActiveView} />;
       case 'essay-review':
         return <EssayReviewView lang={lang} user={user} />;
       case 'pricing':
@@ -320,15 +321,42 @@ export default function WorkspaceLayout({ user, lang, setLang, onLogout, isAdmin
 
           {/* Admin Switch Button */}
           {isAdmin && (
-            <button 
-              onClick={onEnterAdmin} 
-              className="sidebar-bottom-item"
-              style={{ color: '#2563eb', marginBottom: '8px' }}
-              title={isCollapsed ? "Admin Panel" : ""}
-            >
-              <ShieldAlert size={18} className="nav-icon" />
-              {!isCollapsed && <span>{lang === 'uz' ? 'Admin Panel' : 'Админ Панель'}</span>}
-            </button>
+            <>
+              <button 
+                onClick={async () => {
+                  if (!user) return;
+                  const isCurrentlyPro = user.subscription_tier === 'pro' || user.subscription_tier === 'plus';
+                  const newTier = isCurrentlyPro ? 'free' : 'pro';
+                  const newDate = isCurrentlyPro ? null : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+                  
+                  try {
+                    await supabase.from('profiles').update({
+                      subscription_tier: newTier,
+                      subscription_until: newDate
+                    }).eq('id', user.id);
+                    window.location.reload();
+                  } catch (e) {
+                    console.error('Error toggling pro status', e);
+                  }
+                }} 
+                className="sidebar-bottom-item"
+                style={{ color: '#F59E0B', marginBottom: '4px' }}
+                title={isCollapsed ? "Pro Mode Toggle" : ""}
+              >
+                <Crown size={18} className="nav-icon" />
+                {!isCollapsed && <span>{lang === 'uz' ? (user.subscription_tier !== 'free' ? 'Pro ni o\'chirish' : 'Pro ni yoqish') : (user.subscription_tier !== 'free' ? 'Выключить Pro' : 'Включить Pro')}</span>}
+              </button>
+
+              <button 
+                onClick={onEnterAdmin} 
+                className="sidebar-bottom-item"
+                style={{ color: '#2563eb', marginBottom: '8px' }}
+                title={isCollapsed ? "Admin Panel" : ""}
+              >
+                <ShieldAlert size={18} className="nav-icon" />
+                {!isCollapsed && <span>{lang === 'uz' ? 'Admin Panel' : 'Админ Панель'}</span>}
+              </button>
+            </>
           )}
 
           {/* Logout */}
