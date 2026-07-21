@@ -28,7 +28,7 @@ export default function EssayReviewView({ lang, user }) {
     setFeedback(null);
     
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const apiUrl = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001' : '');
       const response = await fetch(`${apiUrl}/api/grade-essay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

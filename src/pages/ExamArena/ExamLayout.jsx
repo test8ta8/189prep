@@ -417,7 +417,7 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
     if (essayQuestion && essayAnswerText.trim().length > 30) {
       setIsAiGrading(true);
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const apiUrl = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001' : '');
         const response = await fetch(`${apiUrl}/api/grade-essay`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

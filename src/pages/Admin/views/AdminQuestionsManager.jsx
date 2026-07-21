@@ -76,7 +76,8 @@ export default function AdminQuestionsManager({ test, onBack }) {
         
         setUploadStatus(`Sahifa ${i} / ${pdf.numPages} tahlil qilinmoqda (AI)...`);
         
-        const detectRes = await fetch('http://localhost:3001/api/detect-boxes', {
+        const apiUrl = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001' : '');
+        const detectRes = await fetch(`${apiUrl}/api/detect-boxes`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pageBase64 })
@@ -112,7 +113,8 @@ export default function AdminQuestionsManager({ test, onBack }) {
           
           const cropBase64 = cropCanvas.toDataURL('image/jpeg', 0.9).split(',')[1];
           
-          const parseRes = await fetch('http://localhost:3001/api/parse-cropped', {
+          const apiUrl = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001' : '');
+          const parseRes = await fetch(`${apiUrl}/api/parse-cropped`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ imageBase64: cropBase64 })
