@@ -3,8 +3,11 @@ import { supabase } from '../../../lib/supabase';
 import { AlertTriangle, TrendingDown, BookOpen, DollarSign, Users, CreditCard, Activity, BarChart2 } from 'lucide-react';
 
 export default function AdminAnalytics() {
-  const [activeTab, setActiveTab] = useState('general'); // 'general' or 'qa'
+  const [activeTab, setActiveTab] = useState('general'); // 'general', 'qa', or 'test_stats'
   const [analytics, setAnalytics] = useState([]);
+  const [testAnalytics, setTestAnalytics] = useState([]);
+  const [testGeneralStats, setTestGeneralStats] = useState({ totalTests: 0, totalQuestions: 0, systemCounts: {} });
+  const [expandedTest, setExpandedTest] = useState(null);
   const [generalStats, setGeneralStats] = useState({
     totalUsers: 0,
     newUsersThisMonth: 0,
@@ -54,6 +57,50 @@ export default function AdminAnalytics() {
         const { data: profiles, error: profilesError } = await supabase.from('profiles').select('id, created_at, subscription_tier');
         if (profilesError) console.error("Error fetching profiles:", profilesError);
         
+        // Load Test Sessions Data
+        try {
+          const { data: sessionsData, error: sessionsError } = await supabase
+            .from('test_sessions')
+            .select(`
+              id, score, completed_at, 
+              profiles ( full_name, email ), 
+              mock_tests ( id, title, exam_system )
+            `)
+            .order('completed_at', { ascending: false });
+
+          if (!sessionsError && sessionsData) {
+            const stats = {};
+            sessionsData.forEach(s => {
+              if (!s.mock_tests) return;
+              const tId = s.mock_tests.id;
+              if (!stats[tId]) {
+                stats[tId] = { test: s.mock_tests, sessions: [] };
+              }
+              stats[tId].sessions.push(s);
+            });
+            setTestAnalytics(Object.values(stats));
+          }
+
+          const { count: totalQuestions } = await supabase.from('questions').select('*', { count: 'exact', head: true });
+          const { data: allTests } = await supabase.from('mock_tests').select('exam_system');
+          
+          let sysCounts = {};
+          if (allTests) {
+             allTests.forEach(t => {
+                const sys = t.exam_system || 'boshqa';
+                sysCounts[sys] = (sysCounts[sys] || 0) + 1;
+             });
+          }
+          setTestGeneralStats({
+             totalTests: allTests ? allTests.length : 0,
+             totalQuestions: totalQuestions || 0,
+             systemCounts: sysCounts
+          });
+
+        } catch (err) {
+          console.error("Error fetching test sessions", err);
+        }
+
         let txs = [];
         try {
           const { data } = await supabase.from('transactions').select('amount, created_at, status').eq('status', 'paid');
@@ -179,6 +226,24 @@ export default function AdminAnalytics() {
         >
           <AlertTriangle size={18} /> Kontent Sifati (QA)
         </button>
+        <button 
+          onClick={() => setActiveTab('test_stats')}
+          style={{ 
+            background: activeTab === 'test_stats' ? '#2563EB' : 'transparent', 
+            color: activeTab === 'test_stats' ? 'white' : '#64748B', 
+            border: 'none', 
+            padding: '8px 16px', 
+            borderRadius: '8px', 
+            cursor: 'pointer',
+            fontWeight: '600',
+            transition: 'all 0.2s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <BookOpen size={18} /> Test Statistikasi
+        </button>
       </div>
 
       {loading ? (
@@ -293,7 +358,7 @@ export default function AdminAnalytics() {
             </div>
           </div>
         </div>
-      ) : (
+      ) : activeTab === 'qa' ? (
         <div className="fade-in-up">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px', marginBottom: '32px' }}>
             <div className="admin-panel" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -373,7 +438,102 @@ export default function AdminAnalytics() {
             </table>
           </div>
         </div>
-      )}
+      ) : activeTab === 'test_stats' ? (
+        <div className="fade-in-up" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          
+          {/* General Stats Summary */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '8px' }}>
+            <div className="admin-panel" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ padding: '16px', background: 'rgba(37, 99, 235, 0.1)', color: '#2563EB', borderRadius: '12px' }}>
+                <BookOpen size={24} />
+              </div>
+              <div>
+                <div style={{ color: '#64748B', fontSize: '14px', marginBottom: '4px' }}>Jami Testlar</div>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#0F172A' }}>{testGeneralStats.totalTests} ta</div>
+              </div>
+            </div>
+
+            <div className="admin-panel" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ padding: '16px', background: 'rgba(16, 185, 129, 0.1)', color: '#10B981', borderRadius: '12px' }}>
+                <Activity size={24} />
+              </div>
+              <div>
+                <div style={{ color: '#64748B', fontSize: '14px', marginBottom: '4px' }}>Jami Savollar</div>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#0F172A' }}>{testGeneralStats.totalQuestions} ta</div>
+              </div>
+            </div>
+
+            <div className="admin-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '8px', justifyContent: 'center' }}>
+              <div style={{ color: '#64748B', fontSize: '14px', marginBottom: '4px' }}>Testlar taqsimoti (turi bo'yicha)</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {Object.entries(testGeneralStats.systemCounts).map(([sys, count]) => (
+                  <div key={sys} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: '500' }}>
+                    <span style={{ color: '#475569', textTransform: 'capitalize' }}>{sys.replace('_', ' ')}</span>
+                    <span style={{ color: '#0F172A' }}>{count} ta</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {testAnalytics.map(ta => (
+            <div key={ta.test.id} className="admin-panel" style={{ padding: '0', overflow: 'hidden', border: '1px solid #E2E8F0', borderRadius: '12px' }}>
+              <div 
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', padding: '16px 24px', background: expandedTest === ta.test.id ? '#F8FAFC' : 'white', transition: 'all 0.2s' }}
+                onClick={() => setExpandedTest(expandedTest === ta.test.id ? null : ta.test.id)}
+              >
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16px', color: '#0F172A', fontWeight: 'bold' }}>{ta.test.title || 'Nomsiz test'}</h3>
+                  <span style={{ fontSize: '13px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                    <BookOpen size={14} /> Tizim: {ta.test.exam_system?.toUpperCase()}
+                  </span>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#2563EB' }}>{ta.sessions.length}</div>
+                  <div style={{ fontSize: '12px', color: '#64748B' }}>ta urinish</div>
+                </div>
+              </div>
+              
+              {expandedTest === ta.test.id && (
+                <div style={{ borderTop: '1px solid #E2E8F0', overflowX: 'auto' }}>
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th style={{ background: '#F8FAFC' }}>Ismi / Email</th>
+                        <th style={{ background: '#F8FAFC' }}>To'plagan ball</th>
+                        <th style={{ background: '#F8FAFC' }}>Qachon yechdi</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ta.sessions.map(s => (
+                        <tr key={s.id}>
+                          <td>
+                            <div style={{ fontWeight: 600, color: '#0F172A' }}>{s.profiles?.full_name || 'Kiritilmagan'}</div>
+                            <div style={{ fontSize: '12px', color: '#64748B' }}>{s.profiles?.email || 'Email yo\'q'}</div>
+                          </td>
+                          <td>
+                            <span style={{ fontWeight: 'bold', color: '#10B981', background: 'rgba(16, 185, 129, 0.1)', padding: '4px 8px', borderRadius: '12px' }}>
+                              {s.score} ball
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '14px', color: '#475569' }}>
+                            {new Date(s.completed_at).toLocaleString('uz-UZ', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ))}
+          {testAnalytics.length === 0 && (
+             <div style={{ padding: '40px', textAlign: 'center', color: '#64748B', background: 'white', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+               Hozircha hech qanday test ishlangan statistikasi yo'q.
+             </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

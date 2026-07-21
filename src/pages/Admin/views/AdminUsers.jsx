@@ -194,7 +194,8 @@ export default function AdminUsers() {
             <thead>
               <tr>
                 <th>ID (UUID)</th>
-                <th>To'liq ism</th>
+                <th>To'liq ism / Email</th>
+                <th>Ro'yxatdan o'tgan</th>
                 <th>Telefon</th>
                 <th>Holati</th>
                 <th>Ta'rif</th>
@@ -210,6 +211,12 @@ export default function AdminUsers() {
                   <td className="uuid-cell" title={u.id}>{u.id}</td>
                   <td style={{ fontWeight: 600, color: u.is_suspended ? 'rgba(15, 23, 42, 0.5)' : '#0F172A', textDecoration: u.is_suspended ? 'line-through' : 'none' }}>
                     {u.full_name || 'Kiritilmagan'}
+                    <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#64748B', marginTop: '4px' }}>
+                      {u.email || 'Email mavjud emas'}
+                    </div>
+                  </td>
+                  <td style={{ fontSize: '14px', color: '#475569' }}>
+                    {u.created_at ? new Date(u.created_at).toLocaleDateString('uz-UZ', { year: 'numeric', month: 'short', day: 'numeric' }) : '-'}
                   </td>
                   <td>{u.phone || '-'}</td>
                   <td>
@@ -290,7 +297,7 @@ export default function AdminUsers() {
               
               {filteredUsers.length === 0 && (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', padding: '32px', color: 'rgba(15, 23, 42, 0.5)' }}>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '32px', color: 'rgba(15, 23, 42, 0.5)' }}>
                     Topilmadi
                   </td>
                 </tr>
