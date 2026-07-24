@@ -271,7 +271,7 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
             <Turnstile
               siteKey={(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
                 ? '1x00000000000000000000AA' 
-                : (import.meta.env.VITE_TURNSTILE_SITE_KEY || '1x00000000000000000000AA')}
+                : (import.meta.env.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAAD4qwtEx-Te2xmAn')}
               onSuccess={(token) => {
                 setTurnstileToken(token);
                 setError(null);
