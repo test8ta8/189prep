@@ -44,7 +44,19 @@ app.use(helmet({
 }));
 app.use(compression());
 app.use(cors({ 
-  origin: process.env.ALLOWED_ORIGIN || (process.env.NODE_ENV === 'production' ? false : '*'),
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (process.env.NODE_ENV !== 'production') return callback(null, true);
+    
+    const allowed = process.env.ALLOWED_ORIGIN ? process.env.ALLOWED_ORIGIN.split(',') : [];
+    allowed.push('https://189prep.vercel.app', 'https://189prep.uz');
+    
+    if (allowed.includes(origin) || origin.endsWith('.vercel.app')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   optionsSuccessStatus: 200 
 }));
 app.use(express.json({ limit: '100kb' })); // Prevents large payload DoS
