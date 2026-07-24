@@ -5,6 +5,7 @@ import LandingPage from './pages/LandingPage/LandingPage';
 import ScoreReportModal from './components/exam/ScoreReportModal';
 import Footer from './components/layout/Footer';
 import AuthPage from './pages/AuthPage/AuthPage';
+import ResetPasswordView from './pages/AuthPage/ResetPasswordView';
 import WorkspaceLayout from './pages/Workspace/WorkspaceLayout';
 import AdminLayout from './pages/Admin/AdminLayout';
 import ExamLayout from './pages/ExamArena/ExamLayout';
@@ -20,6 +21,7 @@ export default function App() {
 
   const [lang, setLang] = useState(() => loadState('app_lang', 'uz'));
   const [authView, setAuthView] = useState(false);
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [viewMode, setViewMode] = useState(() => loadState('app_viewMode', 'workspace'));
@@ -102,8 +104,13 @@ export default function App() {
       setIsInitializing(false);
     });
 
-    // 2. Listen for auth changes (login, logout, refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    // 2. Listen for auth changes (login, logout, refresh, recovery)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecoveryMode(true);
+        setAuthView(false);
+      }
+      
       if (session?.user) {
         const { isAdmin: adminStatus, profile } = await fetchProfile(session.user.id);
         setUser(mergeUserWithProfile(session.user, profile));
@@ -176,6 +183,11 @@ export default function App() {
   // 0. Show empty screen while checking session to prevent flicker
   if (isInitializing) {
     return <div style={{ height: '100vh', background: 'var(--bg-page)' }} />;
+  }
+
+  // Handle password recovery mode
+  if (isRecoveryMode) {
+    return <ResetPasswordView lang={lang} onComplete={() => setIsRecoveryMode(false)} />;
   }
 
   // 1. If user is logged in, show Workspace or Admin

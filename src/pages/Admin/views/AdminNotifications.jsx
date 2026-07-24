@@ -53,7 +53,7 @@ export default function AdminNotifications() {
       try {
         const { data: reports, error: reportsErr } = await supabase
           .from('error_reports')
-          .select('id, message, created_at, user_id, profiles(full_name), mock_tests(title)')
+          .select('id, message, created_at, user_id, profiles(full_name), mock_tests(title), questions(text, order_num)')
           .order('created_at', { ascending: false })
           .limit(20);
         if (!reportsErr && reports) recentReports = reports;
@@ -90,10 +90,16 @@ export default function AdminNotifications() {
       });
 
       recentReports.forEach(r => {
+        let qInfo = '';
+        if (r.questions) {
+          const qText = (r.questions.text || '').replace(/<[^>]+>/g, '').substring(0, 30);
+          qInfo = ` (Savol ${r.questions.order_num || '?'}: ${qText}...)`;
+        }
+        
         events.push({
           id: `report-${r.id}`,
           type: 'error_report',
-          title: `Xatolik haqida xabar: ${r.mock_tests?.title || 'Test'}`,
+          title: `Xatolik: ${r.mock_tests?.title || 'Test'}${qInfo}`,
           description: `Foydalanuvchi (${r.profiles?.full_name || 'Noma\'lum'}): "${r.message}"`,
           date: new Date(r.created_at),
           icon: <AlertCircle size={18} className="text-red" />,

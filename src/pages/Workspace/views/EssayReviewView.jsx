@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { PenTool, CheckCircle, AlertTriangle, Sparkles, Send, RefreshCw, Crown, Lock } from 'lucide-react';
+import { supabase } from '../../../lib/supabase';
 
 export default function EssayReviewView({ lang, user }) {
   const isUz = lang === 'uz';
@@ -31,7 +32,10 @@ export default function EssayReviewView({ lang, user }) {
       const apiUrl = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001' : '');
       const response = await fetch(`${apiUrl}/api/grade-essay`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + ((await supabase.auth.getSession()).data.session?.access_token || '')
+        },
         body: JSON.stringify({ topic, essay, lang, essayType })
       });
 

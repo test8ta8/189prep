@@ -30,12 +30,13 @@ export default function MocksView({ lang, user, onStartExam, onNavigate }) {
   const handleViewCert = async (exam, score) => {
     setIsCertLoading(true);
     try {
-      const { data: questions } = await supabase.from('mock_questions').select('points').eq('test_id', exam.id);
       let maxBall = exam.question_count;
-      if (questions && questions.length > 0) {
-        maxBall = questions.reduce((sum, q) => sum + (q.points || 1), 0);
+      if (exam.exam_system === 'dtm') {
+        maxBall = 189;
+      } else if (exam.exam_system === 'milliy_sertifikat') {
+        maxBall = 75;
       }
-      
+
       const grade = calculateGrade(score, maxBall);
 
       setCertData({

@@ -15,6 +15,7 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
   const [questions, setQuestions] = useState([]);
   const [testInfo, setTestInfo] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sessionId, setSessionId] = useState(null);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState({}); // { questionId: selectedOptionIndex }
@@ -76,17 +77,41 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
           const currentPaper = customConfig.papers[currentPaperIndex];
           setTestInfo(currentPaper);
           setTimeLeft(currentPaper.duration_minutes * 60);
-          const { data: qData } = await supabase.from('questions').select('*').eq('test_id', currentPaper.id).order('order_num', { ascending: true });
+
+          const tokenResult = await supabase.auth.getSession();
+          const jwt = tokenResult.data.session?.access_token;
+          
+          const startRes = await fetch('/api/start-exam', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+             body: JSON.stringify({ testId: currentPaper.id })
+          });
+          
+          if (!startRes.ok) throw new Error('Failed to start A-Level session');
+          const { sessionId: newSessionId } = await startRes.json();
+          setSessionId(newSessionId);
+
+          const { data: qData } = await supabase.rpc('get_exam_questions', { p_session_id: newSessionId });
           if (qData) setQuestions(qData);
+
         } else if (customConfig) {
           setTestInfo({ subject: customConfig.subject, duration_minutes: customConfig.duration_minutes });
           setTimeLeft(customConfig.duration_minutes * 60);
 
-          const { data: qData } = await supabase
-            .from('questions')
-            .select('*')
-            .in('id', customConfig.questionIds);
+          const tokenResult = await supabase.auth.getSession();
+          const jwt = tokenResult.data.session?.access_token;
 
+          const startRes = await fetch('/api/start-practice', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+             body: JSON.stringify({ questionIds: customConfig.questionIds })
+          });
+          
+          if (!startRes.ok) throw new Error('Failed to start custom session');
+          const { sessionId: newSessionId } = await startRes.json();
+          setSessionId(newSessionId);
+
+          const { data: qData } = await supabase.rpc('get_practice_questions', { p_session_id: newSessionId });
           if (qData) setQuestions(qData);
         } else if (testId) {
           // Fetch test info
@@ -101,13 +126,28 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
             setTimeLeft(testData.duration_minutes * 60);
           }
 
-          // Fetch questions
-          const { data: qData } = await supabase
-            .from('questions')
-            .select('*')
-            .eq('test_id', testId)
-            .order('order_num', { ascending: true });
+          // Start exam securely
+          const tokenResult = await supabase.auth.getSession();
+          const jwt = tokenResult.data.session?.access_token;
+          
+          const startRes = await fetch('/api/start-exam', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+             body: JSON.stringify({ testId })
+          });
+          
+          if (!startRes.ok) {
+            const err = await startRes.json();
+            throw new Error(err.error || 'Failed to start exam session');
+          }
+          
+          const { sessionId: newSessionId } = await startRes.json();
+          setSessionId(newSessionId);
 
+          // Fetch questions securely using session ID
+          const { data: qData, error: qError } = await supabase.rpc('get_exam_questions', { p_session_id: newSessionId });
+
+          if (qError) throw new Error(qError.message);
           if (qData) {
             setQuestions(qData);
           }
@@ -317,7 +357,10 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
               try {
                 const res = await fetch('/api/grade-answer', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
+                  headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + ((await supabase.auth.getSession()).data.session?.access_token || '')
+                  },
                   body: JSON.stringify({ userAnswer: userAns, correctAnswer: correctAns, questionText: q.text })
                 });
                 const data = await res.json();
@@ -420,7 +463,10 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
         const apiUrl = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001' : '');
         const response = await fetch(`${apiUrl}/api/grade-essay`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + ((await supabase.auth.getSession()).data.session?.access_token || '')
+          },
           body: JSON.stringify({ 
             topic: essayQuestion.text || 'Mavzu kiritilmagan', 
             essay: essayAnswerText, 
@@ -448,16 +494,45 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
     }
 
     try {
-      if (testId) {
-        const { error: insertError } = await supabase.from('test_sessions').insert([{ user_id: user.id, test_id: testId, score: finalCalculatedScore, completed_at: new Date().toISOString() }]);
-        if (insertError) {
-          console.error("Test session saqlash xatosi:", insertError);
-          alert("Natijangiz hisoblandi, lekin bazaga saqlashda xatolik yuz berdi (RLS yoki tarmoq xatosi). Xato: " + insertError.message);
-        }
+      let finalCalculatedScore = Number(finalTestScore.toFixed(1));
+      let essayScoreVal = null;
+      
+      if (essayScore !== null) {
+        finalCalculatedScore = Number(((finalTestScore + essayScore) / 2).toFixed(1));
+        essayScoreVal = essayScore;
       }
-      setShowReviewModal(false);
 
       const timeSpentSecs = (testInfo ? testInfo.duration_minutes * 60 : 180 * 60) - timeLeft;
+      
+      // 1. Submit answers to secure backend endpoint
+      if (sessionId) {
+        const tokenResult = await supabase.auth.getSession();
+        const jwt = tokenResult.data.session?.access_token;
+        
+        const response = await fetch('/api/submit-exam', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${jwt}`
+          },
+          body: JSON.stringify({
+            sessionId: sessionId,
+            answers: answers,
+            timeSpentSecs: timeSpentSecs
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Failed to submit exam');
+        }
+
+        const data = await response.json();
+        finalCalculatedScore = data.score; // Override local score with authoritative server score
+      }
+
+      setShowReviewModal(false);
+
       const resultObj = {
         subject: { name: testInfo?.subject || 'Test', id: testId, system: testInfo?.exam_system || 'dtm' },
         questions: questions.map((q, i) => {
@@ -486,7 +561,7 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
         maxBall: Number(finalMaxScore.toFixed(1)),
         timeSpent: formatTime(timeSpentSecs),
         testScore: Number(finalTestScore.toFixed(1)),
-        essayScore: essayScore,
+        essayScore: essayScoreVal,
         essayFeedback: essayFeedbackData
       };
 
@@ -692,7 +767,7 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
                   <div key={q.id} style={{ background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
                     <div style={{ fontWeight: 'bold', color: '#0F172A', marginBottom: '8px', display: 'flex', alignItems: 'center' }}>
                       {q.text && q.text.replace(/<[^>]+>/g, '').trim() !== '' ? (
-                        <div dangerouslySetInnerHTML={{ __html: q.text }} style={{ margin: 0, padding: 0 }} className="exam-q-label-custom" />
+                        <MathText>{q.text}</MathText>
                       ) : (
                         `Savol ${idx + 1}`
                       )}

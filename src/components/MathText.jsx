@@ -1,6 +1,17 @@
 import React from 'react';
 import katex from 'katex';
 
+// Escape HTML entities to prevent XSS in non-math text
+function escapeHtml(text) {
+  if (!text) return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 // Auto format common plain text math into LaTeX
 function autoFormatMath(text) {
   if (!text) return '';
@@ -159,7 +170,7 @@ export default function MathText({ children, style, className }) {
             return <span key={index}>{part}</span>;
           }
         } else {
-          return <span key={index} dangerouslySetInnerHTML={{ __html: part.replace(/\n/g, '<br/>') }} />;
+          return <span key={index} dangerouslySetInnerHTML={{ __html: escapeHtml(part).replace(/\n/g, '<br/>') }} />;
         }
       })}
     </div>

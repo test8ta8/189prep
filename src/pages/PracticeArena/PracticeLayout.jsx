@@ -10,6 +10,7 @@ import '../ExamArena/ExamLayout.css'; // Reuse existing styles
 export default function PracticeLayout({ user, config, retryIds, onExit }) {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sessionId, setSessionId] = useState(null);
   
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState({}); // { questionId: selectedOptionIndex }
@@ -26,69 +27,31 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
       try {
         setLoading(true);
         let qData = [];
+        let finalIds = [];
         
         if (retryIds && retryIds.length > 0) {
-          // Mistake retry mode
-          const { data } = await supabase
-            .from('questions')
-            .select('*')
-            .in('id', retryIds);
+          finalIds = retryIds;
+        } else if (config && config.questionIds) {
+          finalIds = config.questionIds;
+        }
+
+        if (finalIds.length > 0) {
+          const tokenResult = await supabase.auth.getSession();
+          const jwt = tokenResult.data.session?.access_token;
+
+          const startRes = await fetch('/api/start-practice', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+             body: JSON.stringify({ questionIds: finalIds })
+          });
+          
+          if (!startRes.ok) throw new Error('Failed to start practice session');
+          const { sessionId: newSessionId } = await startRes.json();
+          setSessionId(newSessionId);
+
+          const { data, error } = await supabase.rpc('get_practice_questions', { p_session_id: newSessionId });
+          if (error) throw new Error(error.message);
           qData = data || [];
-        } else if (config) {
-          // Standard practice mode
-          let testMap = new Map();
-          let testIds = [];
-          if (config.subject) {
-            let queryTests = supabase.from('mock_tests').select('id, subject, exam_system').eq('is_premium', false).neq('exam_system', 'alevel');
-            queryTests = queryTests.or(`subject.ilike.%${config.subject}%,exam_system.eq.dtm`);
-            const { data: testData } = await queryTests;
-            if (testData && testData.length > 0) {
-              testData.forEach(t => testMap.set(t.id, t));
-              testIds = Array.from(testMap.keys());
-            }
-          }
-
-          let query = supabase.from('questions').select('*');
-          
-          if (testIds.length > 0) {
-            query = query.in('test_id', testIds);
-          } else if (config.subject) {
-             setQuestions([]);
-             setLoading(false);
-             return;
-          }
-
-          if (config.difficulty && config.difficulty.length > 0) {
-            query = query.in('difficulty', config.difficulty);
-          }
-          
-          const { data } = await query;
-          let validQuestions = data || [];
-          
-          if (config.subject && validQuestions.length > 0) {
-            const target = config.subject.toLowerCase();
-            validQuestions = validQuestions.filter(q => {
-              const testInfo = testMap.get(q.test_id);
-              if (!testInfo || testInfo.exam_system !== 'dtm') return true;
-              
-              const title = testInfo.subject.toLowerCase();
-              let isValid = false;
-              
-              if ((target.includes('ona tili') || target === 'ona tili va adabiyot') && q.order_num >= 1 && q.order_num <= 10) isValid = true;
-              if (target.includes('matematika') && q.order_num >= 11 && q.order_num <= 20) isValid = true;
-              if (target.includes('tarix') && q.order_num >= 21 && q.order_num <= 30) isValid = true;
-              
-              const parts = title.split(/ va |,| \/ /).map(s => s.trim());
-              if (parts.length >= 1 && parts[0].includes(target) && q.order_num >= 31 && q.order_num <= 60) isValid = true;
-              if (parts.length >= 2 && parts[1].includes(target) && q.order_num >= 61 && q.order_num <= 90) isValid = true;
-              
-              return isValid;
-            });
-          }
-          
-          // Randomize and limit
-          validQuestions.sort(() => 0.5 - Math.random());
-          qData = validQuestions.slice(0, config.count || 10);
         }
 
         if (user && qData.length > 0) {
@@ -183,34 +146,47 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
     const currentQ = questions[currentIndex];
     const selectedOpt = answers[currentQ.id];
     
-    if (selectedOpt === undefined || checkedAnswers[currentQ.id] !== undefined) return;
+    if (selectedOpt === undefined || checkedAnswers[currentQ.id] !== undefined || !sessionId) return;
     
-    let isCorrect = false;
-    if (currentQ.question_type === 'written') {
-      const userAns = (selectedOpt || '').toString().trim().toLowerCase();
-      const correctAnsStr = (currentQ.correct_answer_text || '').toString().trim().toLowerCase();
-      const correctAnswers = correctAnsStr.split(',').map(a => a.trim()).filter(a => a !== '');
-      isCorrect = (correctAnswers.includes(userAns) && userAns !== '');
-    } else {
-      isCorrect = selectedOpt === currentQ.correct_option_index;
-    }
-    
-    setCheckedAnswers(prev => ({
-      ...prev,
-      [currentQ.id]: isCorrect
-    }));
-
-    // Log attempt to database
     try {
-      await supabase.from('attempts').insert([{
-        user_id: user.id,
-        question_id: currentQ.id,
-        selected_option: selectedOpt,
-        is_correct: isCorrect,
-        mode: 'practice'
-      }]);
+      const tokenResult = await supabase.auth.getSession();
+      const jwt = tokenResult.data.session?.access_token;
+      
+      const res = await fetch('/api/check-answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+        body: JSON.stringify({
+          sessionId,
+          questionId: currentQ.id,
+          userAnswer: selectedOpt
+        })
+      });
+
+      if (!res.ok) {
+         const errData = await res.json();
+         throw new Error(errData.error || 'Failed to check answer');
+      }
+      
+      const data = await res.json();
+      
+      setCheckedAnswers(prev => ({
+        ...prev,
+        [currentQ.id]: data.isCorrect
+      }));
+
+      // Update the question object directly with the correct answer fetched from the server
+      setQuestions(prevQs => prevQs.map(q => {
+         if (q.id === currentQ.id) {
+           // We inject the revealed correct answer to display it
+           const correctIdx = q.options ? q.options.findIndex(opt => String(opt).trim() === String(data.correctAnswer).trim()) : -1;
+           return { ...q, correct_option_index: correctIdx, correct_answer_text: data.correctAnswer, explanation_uz: data.explanation_uz, explanation_ru: data.explanation_ru };
+         }
+         return q;
+      }));
+      
     } catch (err) {
-      console.error("Error logging attempt", err);
+      console.error("Error checking answer", err);
+      alert('Xatolik yuz berdi: ' + err.message);
     }
   };
 

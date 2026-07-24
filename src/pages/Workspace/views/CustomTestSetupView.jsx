@@ -15,24 +15,52 @@ export default function CustomTestSetupView({ lang, onStartCustomTest }) {
   };
 
   const handleStart = async () => {
-    // We could either create a real mock_tests row here and pass testId, 
-    // or just pass config to ExamLayout. We will pass a config object.
-    
-    // First let's get the specific questions
-    let query = supabase.from('questions').select('id');
-    if (difficulty.length > 0) {
-      query = query.in('difficulty', difficulty);
-    }
-    const { data } = await query.limit(count);
-    
-    if (data && data.length > 0) {
+    try {
+      // 1. Get tests matching the subject
+      let queryTests = supabase.from('mock_tests').select('id');
+      if (subject) {
+        queryTests = queryTests.ilike('subject', `%${subject}%`);
+      }
+      const { data: testData, error: testError } = await queryTests;
+      if (testError) throw testError;
+      if (!testData || testData.length === 0) {
+        alert("Tanlangan fanga oid testlar topilmadi.");
+        return;
+      }
+      
+      const testIds = testData.map(t => t.id);
+
+      // 2. Call RPC to get question metadata for those tests
+      const { data: questionsData, error: rpcError } = await supabase.rpc('get_question_metadata', { p_test_ids: testIds });
+      if (rpcError) throw rpcError;
+      if (!questionsData || questionsData.length === 0) {
+        alert("Belgilangan parametrlarga mos savollar topilmadi.");
+        return;
+      }
+
+      // 3. Filter by difficulty
+      let filteredQuestions = questionsData;
+      if (difficulty.length > 0) {
+        filteredQuestions = filteredQuestions.filter(q => difficulty.includes(q.difficulty));
+      }
+
+      if (filteredQuestions.length === 0) {
+        alert("Tanlangan qiyinlik darajasiga mos savollar topilmadi.");
+        return;
+      }
+
+      // 4. Shuffle and limit
+      const shuffled = [...filteredQuestions].sort(() => 0.5 - Math.random());
+      const selectedIds = shuffled.slice(0, count).map(q => q.id);
+
       onStartCustomTest({
         subject: subject,
         duration_minutes: duration,
-        questionIds: data.map(q => q.id)
+        questionIds: selectedIds
       });
-    } else {
-      alert("Belgilangan parametrlarga mos savollar topilmadi.");
+    } catch (error) {
+      console.error("Error generating custom exam:", error);
+      alert("Imtihonni boshlashda xatolik yuz berdi.");
     }
   };
 

@@ -25,19 +25,22 @@ export default function PracticeSetupView({ lang, onStartPractice }) {
       testData.forEach(t => testMap.set(t.id, t));
       const testIds = Array.from(testMap.keys());
 
-      let query = supabase.from('questions').select('id, test_id, order_num').in('test_id', testIds);
-      if (difficulty.length > 0) {
-        query = query.in('difficulty', difficulty);
-      }
+      const { data: questionsData } = await supabase.rpc('get_question_metadata', { p_test_ids: testIds });
       
-      const { data: questionsData } = await query;
       if (!questionsData) {
         setMatchingCount(0);
         return;
       }
       
+      // Local difficulty filtering
+      let filteredQuestions = questionsData;
+      if (difficulty.length > 0) {
+        filteredQuestions = filteredQuestions.filter(q => difficulty.includes(q.difficulty));
+      }
+      
       const target = subject.toLowerCase();
-      const validQuestions = questionsData.filter(q => {
+      const validQuestions = filteredQuestions.filter(q => {
+        if (q.question_type === 'written' || q.question_type === 'essay') return false;
         const testInfo = testMap.get(q.test_id);
         if (testInfo.exam_system !== 'dtm') return true;
         
@@ -55,6 +58,8 @@ export default function PracticeSetupView({ lang, onStartPractice }) {
         return isValid;
       });
       
+      // Store valid validQuestions in state so we can pass them
+      window.__validPracticeQuestions = validQuestions;
       setMatchingCount(validQuestions.length);
     }
     fetchCount();
@@ -129,7 +134,12 @@ export default function PracticeSetupView({ lang, onStartPractice }) {
             <span style={{ color: 'rgba(15, 23, 42, 0.5)', marginLeft: '8px' }}>ta savol topildi</span>
           </div>
           <button 
-            onClick={() => onStartPractice({ subject, difficulty, count })}
+            onClick={() => {
+              const qs = window.__validPracticeQuestions || [];
+              const shuffled = [...qs].sort(() => 0.5 - Math.random());
+              const selectedIds = shuffled.slice(0, count).map(q => q.id);
+              onStartPractice({ subject, questionIds: selectedIds });
+            }}
             disabled={matchingCount === 0}
             style={{
               padding: '12px 24px',

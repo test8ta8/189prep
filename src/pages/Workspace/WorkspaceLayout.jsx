@@ -323,31 +323,6 @@ export default function WorkspaceLayout({ user, lang, setLang, onLogout, isAdmin
           {isAdmin && (
             <>
               <button 
-                onClick={async () => {
-                  if (!user) return;
-                  const isCurrentlyPro = user.subscription_tier === 'pro' || user.subscription_tier === 'plus';
-                  const newTier = isCurrentlyPro ? 'free' : 'pro';
-                  const newDate = isCurrentlyPro ? null : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-                  
-                  try {
-                    await supabase.from('profiles').update({
-                      subscription_tier: newTier,
-                      subscription_until: newDate
-                    }).eq('id', user.id);
-                    window.location.reload();
-                  } catch (e) {
-                    console.error('Error toggling pro status', e);
-                  }
-                }} 
-                className="sidebar-bottom-item"
-                style={{ color: '#F59E0B', marginBottom: '4px' }}
-                title={isCollapsed ? "Pro Mode Toggle" : ""}
-              >
-                <Crown size={18} className="nav-icon" />
-                {!isCollapsed && <span>{lang === 'uz' ? (user.subscription_tier !== 'free' ? 'Pro ni o\'chirish' : 'Pro ni yoqish') : (user.subscription_tier !== 'free' ? 'Выключить Pro' : 'Включить Pro')}</span>}
-              </button>
-
-              <button 
                 onClick={onEnterAdmin} 
                 className="sidebar-bottom-item"
                 style={{ color: '#2563eb', marginBottom: '8px' }}

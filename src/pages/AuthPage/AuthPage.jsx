@@ -11,6 +11,8 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isLoginMode, setIsLoginMode] = useState(true);
+  const [isResetMode, setIsResetMode] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -26,11 +28,21 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
     try {
       let data, authError;
 
+      if (isResetMode) {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin,
+        });
+        if (error) throw error;
+        setResetSent(true);
+        return;
+      }
+
       if (isLoginMode) {
         // Try to sign in
         const response = await supabase.auth.signInWithPassword({
           email,
           password,
+          options: { captchaToken: turnstileToken }
         });
         data = response.data;
         authError = response.error;
@@ -43,6 +55,7 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
         const response = await supabase.auth.signUp({
           email,
           password,
+          options: { captchaToken: turnstileToken }
         });
         data = response.data;
         authError = response.error;
@@ -83,11 +96,18 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
     <div className="auth-page-wrapper">
       {/* Back to Home Button */}
       <button
-        onClick={onBackToHome}
+        onClick={() => {
+          if (isResetMode) {
+            setIsResetMode(false);
+            setResetSent(false);
+          } else {
+            onBackToHome();
+          }
+        }}
         className="auth-back-btn"
       >
         <ArrowLeft size={16} />
-        <span>{lang === 'ru' ? 'Вернуться на главную' : 'Bosh sahifaga qaytish'}</span>
+        <span>{lang === 'ru' ? 'Назад' : 'Orqaga'}</span>
       </button>
 
       <div className="auth-card-minimal">
@@ -156,18 +176,29 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
         </div>
 
         <h1 className="auth-title">
-          {isLoginMode 
-            ? (lang === 'ru' ? 'С возвращением!' : 'Xush kelibsiz!')
-            : (lang === 'ru' ? 'Создать аккаунт' : 'Hisob yaratish')}
+          {isResetMode
+            ? (lang === 'ru' ? 'Сброс пароля' : 'Parolni tiklash')
+            : isLoginMode 
+              ? (lang === 'ru' ? 'С возвращением!' : 'Xush kelibsiz!')
+              : (lang === 'ru' ? 'Создать аккаунт' : 'Hisob yaratish')}
         </h1>
 
         <p className="auth-subtitle">
-          {isLoginMode
-            ? (lang === 'ru' ? 'Введите email и пароль для входа.' : 'Kirish uchun email va parolingizni kiriting.')
-            : (lang === 'ru' ? 'Введите email и придумайте пароль для регистрации.' : 'Ro\'yxatdan o\'tish uchun email va parol kiriting.')}
+          {isResetMode
+            ? (lang === 'ru' ? 'Введите email, и мы отправим вам ссылку для сброса.' : 'Emailingizni kiriting va biz tiklash havolasini yuboramiz.')
+            : isLoginMode
+              ? (lang === 'ru' ? 'Введите email и пароль для входа.' : 'Kirish uchun email va parolingizni kiriting.')
+              : (lang === 'ru' ? 'Введите email и придумайте пароль для регистрации.' : 'Ro\'yxatdan o\'tish uchun email va parol kiriting.')}
         </p>
 
-        <form onSubmit={handleSubmit} className="auth-form">
+        {resetSent ? (
+          <div style={{ padding: '16px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', textAlign: 'center', marginBottom: '24px' }}>
+            <p style={{ color: '#059669', fontWeight: '600', margin: 0 }}>
+              {lang === 'ru' ? 'Ссылка для сброса отправлена на ваш email!' : 'Tiklash havolasi emailingizga yuborildi!'}
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="auth-form">
           {/* Email Address */}
           <div className="auth-field-group">
             <label className="auth-label">
@@ -186,30 +217,44 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
             </div>
           </div>
 
-          {/* Password */}
-          <div className="auth-field-group">
-            <label className="auth-label">
-              {lang === 'ru' ? 'Пароль' : 'Parol'}
-            </label>
-            <div className="auth-input-box">
-              <Lock size={18} color="rgba(15, 23, 42, 0.4)" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                placeholder={lang === 'ru' ? 'Введите ваш пароль' : 'Parolingizni kiriting'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="auth-input"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="auth-eye-btn"
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
+          {/* Password (Hide if Reset Mode) */}
+          {!isResetMode && (
+            <div className="auth-field-group">
+              <label className="auth-label">
+                {lang === 'ru' ? 'Пароль' : 'Parol'}
+              </label>
+              <div className="auth-input-box">
+                <Lock size={18} color="rgba(15, 23, 42, 0.4)" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  placeholder={lang === 'ru' ? 'Введите ваш пароль' : 'Parolingizni kiriting'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="auth-input"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="auth-eye-btn"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              
+              {isLoginMode && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                  <button 
+                    type="button" 
+                    onClick={() => setIsResetMode(true)}
+                    style={{ background: 'none', border: 'none', color: '#2563EB', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}
+                  >
+                    {lang === 'ru' ? 'Забыли пароль?' : 'Parolni unutdingizmi?'}
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
           {/* Error Message */}
           {error && (
@@ -238,20 +283,23 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
             />
           </div>
 
-          {/* Black Create Account / Login Button */}
+          {/* Submit Button */}
           <button type="submit" className="btn-auth-primary" disabled={loading}>
             {loading ? (
               <Loader2 size={18} className="animate-spin" />
             ) : (
               <>
                 <span>
-                  {lang === 'ru' ? 'Продолжить' : 'Davom etish'}
+                  {isResetMode 
+                    ? (lang === 'ru' ? 'Отправить ссылку' : 'Havolani yuborish')
+                    : (lang === 'ru' ? 'Продолжить' : 'Davom etish')}
                 </span>
                 <ArrowRight size={17} />
               </>
             )}
           </button>
         </form>
+        )}
 
         {/* Google Sign In Button */}
         <button

@@ -1,6 +1,9 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import helmet from 'helmet';
+import compression from 'compression';
 import { createClient } from '@supabase/supabase-js';
 
 dotenv.config();
@@ -9,15 +12,97 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const app = express();
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+const supabaseAdmin = createClient(
+  process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY // SECURE: Uses Service Role Key for backend tasks
+);
 
-app.post('/parse-pdf', async (req, res) => {
+const getUserSupabase = (req) => {
+  return createClient(supabaseUrl, supabaseKey, {
+    global: { headers: { Authorization: req.headers.authorization } }
+  });
+};
+
+const app = express();
+app.set('trust proxy', 1);
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://challenges.cloudflare.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https://*.supabase.co"],
+      connectSrc: ["'self'", "https://*.supabase.co", "wss://*.supabase.co", "https://challenges.cloudflare.com"],
+      frameSrc: ["'self'", "https://challenges.cloudflare.com"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false
+}));
+app.use(compression());
+app.use(cors({ 
+  origin: process.env.ALLOWED_ORIGIN || (process.env.NODE_ENV === 'production' ? false : '*'),
+  optionsSuccessStatus: 200 
+}));
+app.use(express.json({ limit: '100kb' })); // Prevents large payload DoS
+
+app.use((req, res, next) => {
+  req.setTimeout(10000, () => res.status(408).send('Request Timeout'));
+  next();
+});
+
+const keyGenerator = (req) => req.user?.id || req.ip;
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 min
+  max: 60,
+  keyGenerator,
+  message: { error: 'Too many requests, please try again later.' }
+});
+
+const strictLimiter = rateLimit({
+  windowMs: 10 * 1000, // 10 secs
+  max: 20, // 2 req/sec
+  keyGenerator,
+  message: { error: 'Strict rate limit exceeded. Slow down.' }
+});
+
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  keyGenerator,
+  message: { error: 'Too many requests, please try again later.' }
+});
+
+const authMiddleware = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized: No token provided' });
+  }
+  const token = authHeader.split(' ')[1];
+  
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+  }
+  
+  req.user = data.user;
+  next();
+};
+
+app.post('/parse-pdf', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const { pdfBase64 } = req.body;
     if (!pdfBase64) {
       return res.status(400).json({ error: 'No PDF provided' });
+    }
+
+    // Limit PDF size (~15MB base64 ≈ ~11MB file)
+    if (pdfBase64.length > 20_000_000) {
+      return res.status(400).json({ error: 'PDF too large (max ~15MB)' });
     }
 
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -129,12 +214,12 @@ Rules:
     res.json({ questions: parsedQuestions });
 
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
+    console.error('parse-pdf error:', error);
+    res.status(500).json({ error: 'Failed to process PDF' });
   }
 });
 
-app.post('/api/detect-boxes', async (req, res) => {
+app.post('/api/detect-boxes', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const { pageBase64 } = req.body;
     if (!pageBase64) {
@@ -228,12 +313,12 @@ If no questions are found, return an empty array [].`;
 
     res.json({ boxes });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
+    console.error('detect-boxes error:', error);
+    res.status(500).json({ error: 'Failed to detect boxes' });
   }
 });
 
-app.post('/api/parse-cropped', async (req, res) => {
+app.post('/api/parse-cropped', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const { imageBase64 } = req.body;
     if (!imageBase64) {
@@ -339,131 +424,273 @@ Do not wrap in \`\`\`json.`;
 
     res.json({ question: parsedQuestion });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
+    console.error('parse-cropped error:', error);
+    res.status(500).json({ error: 'Failed to parse image' });
   }
 });
 
-// Mock Webhook for Payme/Click
-app.post('/api/payment/callback', async (req, res) => {
-  try {
-    const { transaction_id, status } = req.body;
-    
-    if (!transaction_id) {
-      return res.status(400).json({ error: 'transaction_id is required' });
-    }
+// ==========================================
+// SECURE EXAM ENDPOINTS
+// ==========================================
 
-    // 1. Get the pending transaction
-    const { data: transaction, error: txError } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('id', transaction_id)
+app.post('/api/start-exam', authMiddleware, apiLimiter, async (req, res) => {
+  try {
+    const { testId } = req.body;
+    if (!testId) return res.status(400).json({ error: 'testId is required' });
+
+    // 1. Validate test exists and is visible
+    const { data: test, error: testError } = await supabaseAdmin
+      .from('mock_tests')
+      .select('is_hidden, is_premium')
+      .eq('id', testId)
       .single();
 
-    if (txError || !transaction) {
-      return res.status(404).json({ error: 'Transaction not found' });
+    if (testError || !test || test.is_hidden) {
+      return res.status(404).json({ error: 'Test not found or unavailable' });
     }
 
-    if (transaction.status === 'paid') {
-      return res.json({ message: 'Transaction already paid' });
-    }
-
-    if (status === 'success') {
-      // 2. Mark transaction as paid
-      await supabase
-        .from('transactions')
-        .update({ status: 'paid', paid_at: new Date().toISOString() })
-        .eq('id', transaction_id);
-
-      // 3. Extend user subscription
-      const monthsToAdd = transaction.plan_months || 1;
-      const { data: userProfile } = await supabase
+    // 2. Strict Premium validation
+    if (test.is_premium) {
+      const { data: profile } = await supabaseAdmin
         .from('profiles')
-        .select('subscription_until')
-        .eq('id', transaction.user_id)
+        .select('subscription_tier, subscription_until, is_suspended')
+        .eq('id', req.user.id)
         .single();
-
-      let currentSubEnd = new Date();
-      if (userProfile?.subscription_until && new Date(userProfile.subscription_until) > currentSubEnd) {
-        currentSubEnd = new Date(userProfile.subscription_until);
+        
+      if (!profile || profile.is_suspended) {
+        return res.status(403).json({ error: 'Account suspended or profile not found' });
       }
+
+      const now = new Date();
+      const subEnd = profile.subscription_until ? new Date(profile.subscription_until) : null;
+      const isSubActive = profile.subscription_tier !== 'free' && subEnd && subEnd > now;
       
-      currentSubEnd.setMonth(currentSubEnd.getMonth() + monthsToAdd);
-
-      await supabase
-        .from('profiles')
-        .update({ subscription_until: currentSubEnd.toISOString() })
-        .eq('id', transaction.user_id);
-
-      return res.json({ message: 'Payment successful, subscription activated!' });
-    } else {
-      // Handle failed/cancelled
-      await supabase
-        .from('transactions')
-        .update({ status: 'cancelled' })
-        .eq('id', transaction_id);
-
-      return res.json({ message: 'Payment cancelled' });
+      if (!isSubActive) {
+        return res.status(403).json({ error: 'Premium subscription required' });
+      }
     }
 
+    // 3. Create Session atomically (Runs AS THE USER to trigger RLS and auth.uid())
+    const userClient = getUserSupabase(req);
+    const { data: sessionId, error: rpcError } = await userClient.rpc('create_exam_session', { p_test_id: testId });
+    
+    if (rpcError) {
+      console.error('Session creation failed:', rpcError);
+      return res.status(500).json({ error: 'Failed to start exam session' });
+    }
+
+    res.json({ success: true, sessionId });
   } catch (err) {
-    console.error('Webhook error:', err);
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
-app.post('/api/ai-tutor', async (req, res) => {
+app.post('/api/submit-exam', authMiddleware, apiLimiter, async (req, res) => {
   try {
-    const { history, message, lang, userContext } = req.body;
-    const GROQ_API_KEY = process.env.GROQ_API_KEY;
-    if (!GROQ_API_KEY) {
-      return res.status(500).json({ error: 'GROQ_API_KEY is not set on the server' });
+    const { sessionId, answers, timeSpentSecs } = req.body;
+    const userId = req.user.id;
+
+    if (!sessionId || !answers) {
+      return res.status(400).json({ error: 'sessionId and answers are required' });
     }
 
-    const contextStr = userContext ? `\n\nStudent Progress Context:\n${JSON.stringify(userContext)}` : '';
+    // 1. Atomically finalize session to prevent replay
+    const { data: sessionData, error: sessionError } = await supabaseAdmin
+      .from('test_sessions')
+      .update({ status: 'completed', completed_at: new Date().toISOString() })
+      .eq('id', sessionId)
+      .eq('user_id', userId)
+      .eq('status', 'in_progress')
+      .gt('expires_at', new Date().toISOString())
+      .select('id, test_id, session_type')
+      .single();
 
-    const systemPrompt = `You are an AI Tutor for a test preparation app called 189PREP.
-You help students understand their mistakes and explain concepts clearly.
-${contextStr}
-Respond in ${lang === 'uz' ? 'Uzbek' : 'Russian'}. Keep it concise, helpful, and use simple markdown (**bold** for emphasis, no complex html).`;
+    if (sessionError || !sessionData) {
+      return res.status(400).json({ error: 'Invalid, expired, or already submitted session' });
+    }
 
-    const validHistory = (history || []).filter((msg, idx) => !(idx === 0 && msg.role === 'model'));
+    const testId = sessionData.test_id;
 
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...validHistory.map(msg => ({
-        role: msg.role === 'model' ? 'assistant' : 'user',
-        content: msg.content
-      })),
-      { role: 'user', content: message }
-    ];
+    // 2. Fetch Test Info and Questions securely via Service Role
+    let testInfo = { exam_system: 'dtm' }; // default
+    let questions = [];
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        messages,
-        model: 'llama-3.3-70b-versatile',
-        temperature: 0.7,
-        max_tokens: 1024
-      })
+    if (sessionData.session_type === 'exam') {
+      const { data: tInfo } = await supabaseAdmin.from('mock_tests').select('*').eq('id', testId).single();
+      if (tInfo) testInfo = tInfo;
+      const { data: qData } = await supabaseAdmin.from('questions').select('*').eq('test_id', testId).order('order_num', { ascending: true });
+      questions = qData || [];
+    } else {
+      // Practice session submitted as an exam (Custom Test flow)
+      const { data: sqData } = await supabaseAdmin.from('session_questions')
+        .select('questions(*)')
+        .eq('session_id', sessionId);
+      questions = sqData ? sqData.map(sq => sq.questions) : [];
+      // Questions don't have a guaranteed order from session_questions, but frontend handles the grading order mapping via IDs.
+    }
+
+    if (questions.length === 0) return res.status(500).json({ error: 'Failed to grade questions: No questions found' });
+
+    let totalPointsEarned = 0;
+    const attemptsToInsert = [];
+    const gradedQuestions = [];
+
+    // 3. Grade securely
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      const userAns = answers[q.id];
+      
+      let pts = q.points || 1;
+      if (testInfo.exam_system === 'dtm') {
+        if (i < 30) pts = 1.1; else if (i < 60) pts = 3.1; else pts = 2.1;
+      }
+
+      let isCorrect = false;
+      let pointsEarned = 0;
+
+      if (userAns !== undefined && userAns !== null && q.question_type !== 'written') {
+        const correctAns = (q.correct_answer_text || '').toString().trim();
+        const correctOptionStr = (q.options && q.options[q.correct_option_index]) ? q.options[q.correct_option_index].toString().trim() : '';
+        const userAnsStr = userAns.toString().trim();
+        
+        if (userAnsStr === correctAns || (correctOptionStr !== '' && userAnsStr === correctOptionStr)) {
+          isCorrect = true;
+          pointsEarned = pts;
+        } else if (!isNaN(parseInt(userAns)) && q.correct_option_index !== undefined && q.correct_option_index !== null) {
+          if (parseInt(userAns) === parseInt(q.correct_option_index)) {
+            isCorrect = true;
+            pointsEarned = pts;
+          }
+        }
+      }
+
+      totalPointsEarned += pointsEarned;
+
+      attemptsToInsert.push({
+        user_id: userId,
+        test_id: testId,
+        question_id: q.id,
+        user_answer: userAns ? userAns.toString() : null,
+        is_correct: isCorrect,
+        points_earned: pointsEarned
+      });
+
+      gradedQuestions.push({
+        ...q,
+        points: pts,
+        is_correct: isCorrect,
+        user_answer: userAns,
+        correct: q.question_type === 'written' ? q.correct_answer_text : (q.options ? q.options[q.correct_option_index] : '')
+      });
+    }
+
+    const finalScore = Number(totalPointsEarned.toFixed(1));
+
+    // 4. Update session score and insert attempts
+    await supabaseAdmin.from('test_sessions').update({ score: finalScore }).eq('id', sessionId);
+    if (attemptsToInsert.length > 0) {
+      await supabaseAdmin.from('attempts').insert(attemptsToInsert);
+    }
+
+    res.json({ success: true, score: finalScore, gradedQuestions });
+  } catch (error) {
+    console.error('Submit Exam Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+app.post('/api/start-practice', authMiddleware, apiLimiter, async (req, res) => {
+  try {
+    const { questionIds } = req.body; // Frontend explicitly requested specific question IDs after metadata filtering
+    const userId = req.user.id;
+
+    if (!questionIds || !Array.isArray(questionIds) || questionIds.length === 0) {
+      return res.status(400).json({ error: 'questionIds array is required' });
+    }
+
+    if (questionIds.length > 200) {
+      return res.status(400).json({ error: 'Too many questions (max 200)' });
+    }
+
+    // 1. Validate questionIds
+    const { data: validQs, error: validErr } = await supabaseAdmin
+      .from('questions')
+      .select('id, test_id')
+      .in('id', questionIds)
+      .eq('status', 'approved');
+
+    if (validErr || !validQs || validQs.length === 0) {
+       return res.status(400).json({ error: 'Invalid question IDs' });
+    }
+
+    const testIds = [...new Set(validQs.map(q => q.test_id))];
+    const { data: validTests } = await supabaseAdmin
+      .from('mock_tests')
+      .select('id')
+      .in('id', testIds)
+      .eq('is_hidden', false);
+    
+    if (!validTests) return res.status(400).json({ error: 'Invalid test IDs' });
+    
+    const validTestIds = new Set(validTests.map(t => t.id));
+    const finalQids = validQs.filter(q => validTestIds.has(q.test_id)).map(q => q.id);
+
+    if (finalQids.length === 0) return res.status(400).json({ error: 'No valid questions found' });
+
+    // 2. Atomically Create Practice Session via RPC
+    const userClient = getUserSupabase(req);
+    const { data: sessionId, error: rpcError } = await userClient.rpc('create_practice_session', { p_question_ids: finalQids });
+
+    if (rpcError || !sessionId) {
+      console.error('Session creation failed:', rpcError);
+      return res.status(500).json({ error: 'Failed to assign practice questions' });
+    }
+
+    res.json({ success: true, sessionId });
+  } catch (error) {
+    console.error('Start Practice Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+app.post('/api/check-answer', authMiddleware, strictLimiter, async (req, res) => {
+  try {
+    const { sessionId, questionId, userAnswer } = req.body;
+    const userId = req.user.id;
+
+    if (!sessionId || !questionId || userAnswer === undefined) {
+      return res.status(400).json({ error: 'sessionId, questionId, and userAnswer required' });
+    }
+
+    // 1. Atomically execute checking via secure RPC
+    const userClient = getUserSupabase(req);
+    const { data: result, error: rpcError } = await userClient.rpc('check_practice_answer', {
+      p_session_id: sessionId,
+      p_question_id: questionId,
+      p_user_answer: userAnswer.toString()
     });
 
-    const data = await response.json();
-    if (!response.ok) throw new Error(JSON.stringify(data));
+    if (rpcError) {
+      const msg = rpcError.message || '';
+      if (msg.includes('Invalid') || msg.includes('expired') || msg.includes('unauthorized')) return res.status(403).json({ error: msg });
+      if (msg.includes('Maximum attempts') || msg.includes('already answered')) return res.status(429).json({ error: msg });
+      if (msg.includes('not found')) return res.status(404).json({ error: msg });
+      
+      console.error('Check Answer RPC Error:', rpcError);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
 
-    const reply = data.choices[0].message.content;
-    res.json({ reply });
+    res.json(result);
+
   } catch (error) {
-    console.error("AI Tutor Error:", error);
-    res.status(500).json({ error: error.message });
+    console.error('Check Answer Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
-app.post('/api/grade-answer', async (req, res) => {
+
+app.post('/api/grade-answer', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const { userAnswer, correctAnswer, questionText } = req.body;
 
@@ -471,32 +698,30 @@ app.post('/api/grade-answer', async (req, res) => {
       return res.status(400).json({ error: 'userAnswer and correctAnswer are required' });
     }
 
+    // Limit input lengths to prevent prompt injection abuse
+    if (userAnswer.length > 2000 || correctAnswer.length > 2000 || (questionText && questionText.length > 5000)) {
+      return res.status(400).json({ error: 'Input too long' });
+    }
+
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
     if (!GEMINI_API_KEY) {
       return res.status(500).json({ error: 'GEMINI_API_KEY is not set on the server' });
     }
 
-    const prompt = `You are a strict but fair A-Level Mathematics examiner.
-The student was asked this question:
-"""
-${questionText || 'A math problem'}
-"""
-The official correct answer/key is:
-"""
-${correctAnswer}
-"""
-The student wrote:
-"""
-${userAnswer}
-"""
-Evaluate if the student's answer is mathematically equivalent to the correct answer. 
-A-Level Math often accepts simplified fractions, decimals, or different algebraic forms if mathematically identical.
-If it is correct, return "CORRECT". If it is wrong, return "INCORRECT".
-Format your response EXACTLY as a JSON object with two keys:
+    const systemInstruction = `You are a strict but fair A-Level Mathematics examiner. Evaluate if the student's answer is mathematically equivalent to the correct answer. A-Level Math often accepts simplified fractions, decimals, or different algebraic forms if mathematically identical. If it is correct, return "CORRECT". If it is wrong, return "INCORRECT". Format your response EXACTLY as a JSON object with two keys:
 {
   "isCorrect": boolean,
   "feedback": "A short 1-sentence explanation of why it is right or wrong, helpful to the student."
 }`;
+
+    const userMessage = `Question:
+${questionText || 'A math problem'}
+
+Official correct answer/key:
+${correctAnswer}
+
+Student answer:
+${userAnswer}`;
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`,
@@ -507,7 +732,8 @@ Format your response EXACTLY as a JSON object with two keys:
           'x-goog-api-key': GEMINI_API_KEY
         },
         body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }]
+          system_instruction: { parts: [{ text: systemInstruction }] },
+          contents: [{ role: "user", parts: [{ text: userMessage }] }]
         })
       }
     );
@@ -534,12 +760,20 @@ Format your response EXACTLY as a JSON object with two keys:
   }
 });
 
-app.post('/api/grade-essay', async (req, res) => {
+app.post('/api/grade-essay', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const { topic, essay, lang, essayType } = req.body;
 
     if (!essay) {
       return res.status(400).json({ error: 'Essay is required' });
+    }
+
+    // Limit input lengths to prevent abuse
+    if (essay.length > 20000) {
+      return res.status(400).json({ error: 'Essay too long (max 20,000 characters)' });
+    }
+    if (topic && topic.length > 1000) {
+      return res.status(400).json({ error: 'Topic too long' });
     }
 
     const GROQ_API_KEY = process.env.GROQ_API_KEY;
@@ -561,12 +795,6 @@ app.post('/api/grade-essay', async (req, res) => {
     }
 
     const systemPrompt = `You are an expert examiner.
-The student has written an essay on the following topic (optional): "${topic || 'No specific topic provided'}"
-The essay is:
-"""
-${essay}
-"""
-
 ${criteriaPrompt}
 
 Format your response EXACTLY as a JSON object with these keys:
@@ -584,6 +812,12 @@ Format your response EXACTLY as a JSON object with these keys:
 
 Please respond in ${lang === 'uz' ? 'Uzbek' : 'Russian'}. You must return a valid JSON object.`;
 
+    const userMessage = `Topic: "${topic || 'No specific topic provided'}"
+Essay:
+"""
+${essay}
+"""`;
+
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -591,7 +825,10 @@ Please respond in ${lang === 'uz' ? 'Uzbek' : 'Russian'}. You must return a vali
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        messages: [{ role: 'system', content: systemPrompt }],
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
         model: 'llama-3.3-70b-versatile',
         temperature: 0.2,
         response_format: { type: "json_object" }
@@ -633,7 +870,7 @@ Please respond in ${lang === 'uz' ? 'Uzbek' : 'Russian'}. You must return a vali
   }
 });
 
-app.post('/api/analyze-progress', async (req, res) => {
+app.post('/api/analyze-progress', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const { testHistory, lang } = req.body;
     
@@ -648,15 +885,15 @@ app.post('/api/analyze-progress', async (req, res) => {
 
     const systemPrompt = `You are an AI Analyst for an exam prep app. 
 Analyze the student's recent test history and identify their weakest subjects or topics.
-Test history data:
-${JSON.stringify(testHistory)}
-
 Write a professional, encouraging paragraph analyzing their weaknesses and giving 1-2 actionable tips on what to study next.
 Format your response EXACTLY as a JSON object:
 {
   "analysis": "Your detailed feedback paragraph"
 }
 Respond in ${lang === 'uz' ? 'Uzbek' : 'Russian'} language. You must output valid JSON.`;
+
+    const userMessage = `Test history data:
+${JSON.stringify(testHistory)}`;
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -665,7 +902,10 @@ Respond in ${lang === 'uz' ? 'Uzbek' : 'Russian'} language. You must output vali
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        messages: [{ role: 'system', content: systemPrompt }],
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
         model: 'llama-3.3-70b-versatile',
         temperature: 0.5,
         response_format: { type: "json_object" }
@@ -685,12 +925,20 @@ Respond in ${lang === 'uz' ? 'Uzbek' : 'Russian'} language. You must output vali
   }
 });
 
-app.post('/api/ai-tutor', async (req, res) => {
+app.post('/api/ai-tutor', authMiddleware, aiLimiter, async (req, res) => {
   try {
     const { history, message, lang, userContext } = req.body;
     
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
+    }
+
+    // Limit input to prevent abuse
+    if (message.length > 5000) {
+      return res.status(400).json({ error: 'Message too long' });
+    }
+    if (history && history.length > 50) {
+      return res.status(400).json({ error: 'Conversation history too long' });
     }
 
     const GROQ_API_KEY = process.env.GROQ_API_KEY;

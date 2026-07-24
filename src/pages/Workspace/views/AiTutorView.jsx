@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Lock, Sparkles, ArrowRight, ArrowLeft, Send, Bot, User, Plus, MessageSquare, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { supabase } from '../../../lib/supabase';
 
 export default function AiTutorView({ lang, user, stats, onNavigate }) {
   const isUz = lang === 'uz';
@@ -82,7 +83,10 @@ export default function AiTutorView({ lang, user, stats, onNavigate }) {
       const apiUrl = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001' : '');
       const response = await fetch(`${apiUrl}/api/ai-tutor`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + ((await supabase.auth.getSession()).data.session?.access_token || '')
+        },
         body: JSON.stringify({
           history: currentSession.messages,
           message: input,

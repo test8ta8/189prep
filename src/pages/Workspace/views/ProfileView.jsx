@@ -64,16 +64,23 @@ export default function ProfileView({ lang, user }) {
     setSuccessMsg('');
     
     try {
-      const { error } = await supabase.from('profiles').upsert({
-        id: user.id,
-        full_name: formData.fullName,
-        phone: formData.phone,
-        target_university: formData.targetUniversity,
-        target_score: formData.targetScore,
-        exam_date: formData.examDate ? new Date(formData.examDate).toISOString() : null
+      const { error } = await supabase.rpc('update_my_profile', {
+        p_full_name: formData.fullName,
+        p_phone: formData.phone,
+        p_target_score: formData.targetScore,
+        p_target_university: formData.targetUniversity,
+        p_exam_date: formData.examDate || null
       });
 
       if (error) throw error;
+      
+      onUpdateProfile({ 
+        ...user, 
+        full_name: formData.fullName,
+        phone: formData.phone,
+        target_score: formData.targetScore,
+        target_university: formData.targetUniversity
+      });
       
       setSuccessMsg(lang === 'uz' ? 'Ma\'lumotlar saqlandi!' : 'Данные сохранены!');
       setTimeout(() => setSuccessMsg(''), 3000);

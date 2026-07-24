@@ -79,7 +79,10 @@ export default function AdminQuestionsManager({ test, onBack }) {
         const apiUrl = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001' : '');
         const detectRes = await fetch(`${apiUrl}/api/detect-boxes`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + ((await supabase.auth.getSession()).data.session?.access_token || '')
+          },
           body: JSON.stringify({ pageBase64 })
         });
         const detectData = await detectRes.json();
@@ -116,7 +119,10 @@ export default function AdminQuestionsManager({ test, onBack }) {
           const apiUrl = import.meta.env.VITE_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001' : '');
           const parseRes = await fetch(`${apiUrl}/api/parse-cropped`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + ((await supabase.auth.getSession()).data.session?.access_token || '')
+            },
             body: JSON.stringify({ imageBase64: cropBase64 })
           });
           const parseData = await parseRes.json();
