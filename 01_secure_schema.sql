@@ -241,7 +241,7 @@ BEGIN
     SELECT q.id, q.test_id, q.order_num, q.text, q.image_url, q.options, 
            q.points, q.topic, q.subtopic, q.difficulty, q.status, q.question_type
     FROM public.questions q
-    WHERE q.test_id = v_test_id AND q.status = 'approved'
+    WHERE q.test_id = v_test_id AND q.status = 'published'
     ORDER BY q.order_num ASC;
 END;
 $$;
@@ -289,7 +289,7 @@ BEGIN
     SELECT q.id, q.test_id, q.order_num, q.question_type, q.difficulty, q.topic, q.subtopic
     FROM public.questions q
     JOIN public.mock_tests mt ON mt.id = q.test_id
-    WHERE q.test_id = ANY(p_test_ids) AND q.status = 'approved' AND mt.is_hidden = false;
+    WHERE q.test_id = ANY(p_test_ids) AND q.status = 'published' AND mt.is_hidden = false;
 END;
 $$;
 ALTER FUNCTION public.get_question_metadata OWNER TO postgres;
