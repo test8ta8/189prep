@@ -354,7 +354,44 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
                 <img src={currentQ.image_url} alt="Savol rasmi" className="exam-q-image" />
               )}
 
-              {currentQ.question_type === 'written' ? (
+              {currentQ.question_type === 'multipart_ab' ? (
+                <div className="exam-written-answer" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {['a', 'b'].map(part => {
+                    let cVal = { a: '', b: '' };
+                    try { if(answers[currentQ.id]) cVal = JSON.parse(answers[currentQ.id]); } catch(e) {}
+                    let correctObj = { a: '', b: '' };
+                    try { if(currentQ.correct_answer_text) correctObj = JSON.parse(currentQ.correct_answer_text); } catch(e) {}
+                    
+                    return (
+                      <div key={part} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ fontWeight: 'bold', fontSize: '18px', textTransform: 'uppercase' }}>{part}:</span>
+                          <input 
+                            type="text"
+                            placeholder={`${part.toUpperCase()} qism javobi`}
+                            value={cVal[part] || ''}
+                            disabled={isCurrentChecked}
+                            onChange={e => {
+                              const nVal = { ...cVal, [part]: e.target.value };
+                              setAnswers(prev => ({ ...prev, [currentQ.id]: JSON.stringify(nVal) }));
+                            }}
+                            style={{ 
+                              flex: 1, padding: '16px', borderRadius: '12px', fontSize: '16px', outline: 'none',
+                              border: isCurrentChecked && isCurrentCorrect ? '2px solid #22C55E' : isCurrentChecked && !isCurrentCorrect ? '2px solid #EF4444' : '1px solid rgba(15, 23, 42, 0.2)',
+                              background: isCurrentChecked && isCurrentCorrect ? '#F0FDF4' : isCurrentChecked && !isCurrentCorrect ? '#FEF2F2' : 'white'
+                            }}
+                          />
+                        </div>
+                        {isCurrentChecked && !isCurrentCorrect && (
+                          <div style={{ color: '#22C55E', fontWeight: 'bold', marginLeft: '30px', fontSize: '14px' }}>
+                            To'g'ri javob: {correctObj[part]}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : currentQ.question_type === 'written' ? (
                 <div className="exam-written-answer">
                   <textarea
                     placeholder="Javobingizni shu yerga kiriting..."
@@ -416,15 +453,15 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
                 <div style={{ marginTop: '24px', textAlign: 'right' }}>
                   <button
                     onClick={checkAnswer}
-                    disabled={selectedCurrentOpt === undefined}
+                    disabled={answers[currentQ.id] === undefined || answers[currentQ.id] === '' || answers[currentQ.id] === '{}'}
                     style={{
                       padding: '12px 24px',
-                      background: selectedCurrentOpt === undefined ? 'rgba(15, 23, 42, 0.1)' : '#2563EB',
-                      color: selectedCurrentOpt === undefined ? 'rgba(15, 23, 42, 0.4)' : 'white',
+                      background: (answers[currentQ.id] === undefined || answers[currentQ.id] === '' || answers[currentQ.id] === '{}') ? 'rgba(15, 23, 42, 0.1)' : '#2563EB',
+                      color: (answers[currentQ.id] === undefined || answers[currentQ.id] === '' || answers[currentQ.id] === '{}') ? 'rgba(15, 23, 42, 0.4)' : 'white',
                       border: 'none',
                       borderRadius: '8px',
                       fontWeight: '600',
-                      cursor: selectedCurrentOpt === undefined ? 'not-allowed' : 'pointer'
+                      cursor: (answers[currentQ.id] === undefined || answers[currentQ.id] === '' || answers[currentQ.id] === '{}') ? 'not-allowed' : 'pointer'
                     }}
                   >
                     Javobni tekshirish

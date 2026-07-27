@@ -772,7 +772,29 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
                         `Savol ${idx + 1}`
                       )}
                     </div>
-                    {q.question_type === 'written' ? (
+                    {q.question_type === 'multipart_ab' ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {['a', 'b'].map(part => {
+                          let cVal = { a: '', b: '' };
+                          try { if(answers[q.id]) cVal = JSON.parse(answers[q.id]); } catch(e) {}
+                          return (
+                            <div key={part} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontWeight: 'bold', textTransform: 'uppercase' }}>{part}:</span>
+                              <input 
+                                type="text"
+                                placeholder={`${part.toUpperCase()} qism javobi`}
+                                value={cVal[part] || ''}
+                                onChange={e => {
+                                  const nVal = { ...cVal, [part]: e.target.value };
+                                  setAnswers(prev => ({ ...prev, [q.id]: JSON.stringify(nVal) }));
+                                }}
+                                style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(15,23,42,0.2)', outline: 'none' }}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : q.question_type === 'written' ? (
                       <textarea
                         placeholder="Javobingizni shu yerga kiriting..."
                         value={answers[q.id] || ''}
@@ -901,6 +923,28 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
                         onChange={(e) => setAnswers(prev => ({ ...prev, [currentQ.id]: e.target.value }))}
                         style={{ width: '100%', minHeight: '300px', padding: '16px', borderRadius: '12px', border: '1px solid rgba(139, 92, 246, 0.3)', fontSize: '15px', color: '#0F172A', outline: 'none', resize: 'vertical' }}
                       />
+                    </div>
+                  ) : currentQ.question_type === 'multipart_ab' ? (
+                    <div className="exam-written-answer" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {['a', 'b'].map(part => {
+                        let cVal = { a: '', b: '' };
+                        try { if(answers[currentQ.id]) cVal = JSON.parse(answers[currentQ.id]); } catch(e) {}
+                        return (
+                          <div key={part} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <span style={{ fontWeight: 'bold', fontSize: '18px', textTransform: 'uppercase' }}>{part}:</span>
+                            <input 
+                              type="text"
+                              placeholder={`${part.toUpperCase()} qism javobi`}
+                              value={cVal[part] || ''}
+                              onChange={e => {
+                                const nVal = { ...cVal, [part]: e.target.value };
+                                setAnswers(prev => ({ ...prev, [currentQ.id]: JSON.stringify(nVal) }));
+                              }}
+                              style={{ flex: 1, padding: '16px', borderRadius: '12px', border: '1px solid rgba(15, 23, 42, 0.2)', fontSize: '16px', outline: 'none' }}
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : currentQ.question_type === 'written' ? (
                     <div className="exam-written-answer">

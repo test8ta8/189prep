@@ -725,6 +725,7 @@ export default function AdminQuestionsManager({ test, onBack }) {
                   >
                     <option value="mcq">Variantli (A,B,C,D)</option>
                     <option value="written">Yozma javob (Ochiq savol)</option>
+                    <option value="multipart_ab">Ikkita qismli yozma (A, B)</option>
                     <option value="matching">Moslashtirish (A-F)</option>
                     <option value="essay">Esse yozish (AI orqali baholanadi)</option>
                   </select>
@@ -755,7 +756,7 @@ export default function AdminQuestionsManager({ test, onBack }) {
                 </div>
               </div>
 
-              {editingQuestion.question_type !== 'written' && editingQuestion.question_type !== 'essay' && (
+              {editingQuestion.question_type !== 'written' && editingQuestion.question_type !== 'essay' && editingQuestion.question_type !== 'multipart_ab' && (
               <div>
                 <label style={{ display: 'block', color: 'rgba(15, 23, 42, 0.6)', marginBottom: '8px', fontSize: '14px' }}>Variantlar {editingQuestion.question_type === 'matching' ? '(A-F)' : ''}</label>
                 {editingQuestion.options.map((opt, idx) => (
@@ -801,6 +802,41 @@ export default function AdminQuestionsManager({ test, onBack }) {
                 />
               </div>
               )}
+
+              {editingQuestion.question_type === 'multipart_ab' && (() => {
+                let mAns = { a: '', b: '' };
+                try { if(editingQuestion.correct_answer_text) mAns = JSON.parse(editingQuestion.correct_answer_text); } catch(e) {}
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', color: 'rgba(15, 23, 42, 0.6)', marginBottom: '8px', fontSize: '14px' }}>A qismi to'g'ri javobi</label>
+                      <input 
+                        type="text"
+                        required
+                        value={mAns.a || ''}
+                        onChange={e => {
+                          const nAns = { ...mAns, a: e.target.value };
+                          setEditingQuestion({...editingQuestion, correct_answer_text: JSON.stringify(nAns)});
+                        }}
+                        style={{ width: '100%', background: '#FFFFFF', border: '1px solid rgba(15, 23, 42, 0.1)', color: '#0F172A', padding: '12px', borderRadius: '8px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', color: 'rgba(15, 23, 42, 0.6)', marginBottom: '8px', fontSize: '14px' }}>B qismi to'g'ri javobi</label>
+                      <input 
+                        type="text"
+                        required
+                        value={mAns.b || ''}
+                        onChange={e => {
+                          const nAns = { ...mAns, b: e.target.value };
+                          setEditingQuestion({...editingQuestion, correct_answer_text: JSON.stringify(nAns)});
+                        }}
+                        style={{ width: '100%', background: '#FFFFFF', border: '1px solid rgba(15, 23, 42, 0.1)', color: '#0F172A', padding: '12px', borderRadius: '8px' }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div>
                 <label style={{ display: 'block', color: 'rgba(15, 23, 42, 0.6)', marginBottom: '8px', fontSize: '14px' }}>Tushuntirish (O'zbek tili)</label>

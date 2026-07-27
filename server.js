@@ -566,24 +566,49 @@ app.post('/api/submit-exam', authMiddleware, apiLimiter, async (req, res) => {
       let isCorrect = false;
       let pointsEarned = 0;
 
-      if (userAns !== undefined && userAns !== null && q.question_type !== 'written') {
+      if (userAns !== undefined && userAns !== null && q.question_type !== 'essay') {
         const correctAns = (q.correct_answer_text || '').toString().trim();
-        
-        let parsedOptions = q.options;
-        if (typeof parsedOptions === 'string') {
-          try { parsedOptions = JSON.parse(parsedOptions); } catch(e) {}
-        }
-        
-        const correctOptionStr = (parsedOptions && parsedOptions[q.correct_option_index]) ? parsedOptions[q.correct_option_index].toString().trim() : '';
         const userAnsStr = userAns.toString().trim();
-        
-        if (userAnsStr === correctAns || (correctOptionStr !== '' && userAnsStr === correctOptionStr)) {
-          isCorrect = true;
-          pointsEarned = pts;
-        } else if (!isNaN(parseInt(userAns)) && q.correct_option_index !== undefined && q.correct_option_index !== null) {
-          if (parseInt(userAns) === parseInt(q.correct_option_index)) {
+
+        if (q.question_type === 'multipart_ab') {
+          try {
+            const uAnsObj = typeof userAns === 'string' ? JSON.parse(userAns) : userAns;
+            const cAnsObj = JSON.parse(correctAns);
+            const uA = (uAnsObj.a || '').toString().trim().toLowerCase();
+            const uB = (uAnsObj.b || '').toString().trim().toLowerCase();
+            const cA = (cAnsObj.a || '').toString().trim().toLowerCase();
+            const cB = (cAnsObj.b || '').toString().trim().toLowerCase();
+            
+            if (uA !== '' && uB !== '' && uA === cA && uB === cB) {
+              isCorrect = true;
+              pointsEarned = pts;
+            } else if ((uA !== '' && uA === cA) || (uB !== '' && uB === cB)) {
+              isCorrect = false; // Partially correct
+              pointsEarned = pts / 2; // Half points
+            }
+          } catch(e) {}
+        } else if (q.question_type === 'written') {
+          const validAnswers = correctAns.split(',').map(s => s.trim().toLowerCase());
+          if (validAnswers.includes(userAnsStr.toLowerCase())) {
             isCorrect = true;
             pointsEarned = pts;
+          }
+        } else {
+          let parsedOptions = q.options;
+          if (typeof parsedOptions === 'string') {
+            try { parsedOptions = JSON.parse(parsedOptions); } catch(e) {}
+          }
+          
+          const correctOptionStr = (parsedOptions && parsedOptions[q.correct_option_index]) ? parsedOptions[q.correct_option_index].toString().trim() : '';
+          
+          if (userAnsStr === correctAns || (correctOptionStr !== '' && userAnsStr === correctOptionStr)) {
+            isCorrect = true;
+            pointsEarned = pts;
+          } else if (!isNaN(parseInt(userAns)) && q.correct_option_index !== undefined && q.correct_option_index !== null) {
+            if (parseInt(userAns) === parseInt(q.correct_option_index)) {
+              isCorrect = true;
+              pointsEarned = pts;
+            }
           }
         }
       }
@@ -604,7 +629,7 @@ app.post('/api/submit-exam', authMiddleware, apiLimiter, async (req, res) => {
         points: pts,
         is_correct: isCorrect,
         user_answer: userAns,
-        correct: q.question_type === 'written' ? q.correct_answer_text : ((typeof q.options === 'string' ? (() => { try { return JSON.parse(q.options)[q.correct_option_index]; } catch(e) { return ''; } })() : (q.options ? q.options[q.correct_option_index] : '')))
+        correct: (q.question_type === 'written' || q.question_type === 'multipart_ab') ? q.correct_answer_text : ((typeof q.options === 'string' ? (() => { try { return JSON.parse(q.options)[q.correct_option_index]; } catch(e) { return ''; } })() : (q.options ? q.options[q.correct_option_index] : '')))
       });
     }
 
