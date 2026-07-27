@@ -503,6 +503,48 @@ app.post('/api/start-exam', authMiddleware, apiLimiter, async (req, res) => {
   }
 });
 
+app.post('/api/get-exam-questions', authMiddleware, apiLimiter, async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    if (!sessionId) return res.status(400).json({ error: 'sessionId is required' });
+
+    // Verify session
+    const { data: session, error: sessionError } = await supabaseAdmin
+      .from('test_sessions')
+      .select('test_id, user_id, status, expires_at, session_type')
+      .eq('id', sessionId)
+      .single();
+
+    if (sessionError || !session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    if (session.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized session access' });
+    }
+
+    if (session.status !== 'in_progress' || session.session_type !== 'exam' || new Date(session.expires_at) <= new Date()) {
+      return res.status(400).json({ error: 'Invalid or expired exam session' });
+    }
+
+    // Fetch questions securely (excluding sensitive fields)
+    const { data: questions, error: qError } = await supabaseAdmin
+      .from('questions')
+      .select('id, test_id, order_num, text, image_url, options, points, topic, subtopic, difficulty, status, question_type')
+      .eq('test_id', session.test_id)
+      .order('order_num', { ascending: true });
+
+    if (qError) {
+      return res.status(500).json({ error: 'Failed to fetch questions' });
+    }
+
+    res.json({ questions });
+  } catch (err) {
+    console.error('get-exam-questions error:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 app.post('/api/submit-exam', authMiddleware, apiLimiter, async (req, res) => {
   try {
     const { sessionId, answers, timeSpentSecs } = req.body;

@@ -91,8 +91,15 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
           const { sessionId: newSessionId } = await startRes.json();
           setSessionId(newSessionId);
 
-          const { data: qData } = await supabase.rpc('get_exam_questions', { p_session_id: newSessionId });
-          if (qData) setQuestions(qData);
+          const qRes = await fetch('/api/get-exam-questions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+            body: JSON.stringify({ sessionId: newSessionId })
+          });
+          if (qRes.ok) {
+            const { questions: qData } = await qRes.json();
+            if (qData) setQuestions(qData);
+          }
 
         } else if (customConfig) {
           setTestInfo({ subject: customConfig.subject, duration_minutes: customConfig.duration_minutes });
@@ -144,10 +151,19 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
           const { sessionId: newSessionId } = await startRes.json();
           setSessionId(newSessionId);
 
-          // Fetch questions securely using session ID
-          const { data: qData, error: qError } = await supabase.rpc('get_exam_questions', { p_session_id: newSessionId });
+          // Fetch questions securely using the new endpoint
+          const qRes = await fetch('/api/get-exam-questions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+            body: JSON.stringify({ sessionId: newSessionId })
+          });
 
-          if (qError) throw new Error(qError.message);
+          if (!qRes.ok) {
+             const qErr = await qRes.json();
+             throw new Error(qErr.error || 'Failed to fetch questions');
+          }
+
+          const { questions: qData } = await qRes.json();
           if (qData) {
             setQuestions(qData);
           }
