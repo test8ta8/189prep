@@ -18,14 +18,40 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
     e.preventDefault();
     setError(null);
 
-    if (!turnstileToken) {
+    if (!turnstileToken && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
       setError(lang === 'ru' ? 'Пожалуйста, пройдите проверку безопасности' : 'Iltimos, xavfsizlik tekshiruvidan o\'ting');
       return;
+    }
+    
+    // For localhost, bypass Turnstile token
+    let finalToken = turnstileToken;
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      finalToken = 'dummy_token_for_localhost';
     }
 
     setLoading(true);
 
     try {
+      // 1. Fetch IP
+      let ip = 'Unknown';
+      try {
+        const ipRes = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipRes.json();
+        ip = ipData.ip;
+      } catch (e) {
+        console.warn("Could not fetch IP", e);
+      }
+      
+      // 2. Check Blacklist
+      if (ip !== 'Unknown') {
+        const { data: blacklisted } = await supabase.from('ip_blacklist').select('id').eq('ip_address', ip).single();
+        if (blacklisted) {
+           throw new Error("Sizning IP manzilingiz bloklangan.");
+        }
+      }
+
+      const deviceInfo = navigator.userAgent;
+
       let data, authError;
 
       if (isResetMode) {
@@ -42,32 +68,43 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
         const response = await supabase.auth.signInWithPassword({
           email,
           password,
-          options: { captchaToken: turnstileToken }
+          options: { captchaToken: finalToken }
         });
         data = response.data;
         authError = response.error;
         
         if (authError && authError.message.toLowerCase().includes('invalid login credentials')) {
-          throw new Error(lang === 'ru' ? 'Неверный email или пароль' : 'Email yoki parol noto\'g\'ri');
+          authError.message = lang === 'ru' ? 'Неверный email или пароль' : 'Email yoki parol noto\'g\'ri';
         }
       } else {
         // Try to sign up
         const response = await supabase.auth.signUp({
           email,
           password,
-          options: { captchaToken: turnstileToken }
+          options: { captchaToken: finalToken }
         });
         data = response.data;
         authError = response.error;
         
         if (authError && authError.message.toLowerCase().includes('already registered')) {
-           throw new Error(lang === 'ru' ? 'Этот email уже зарегистрирован' : 'Bu email allaqachon ro\'yxatdan o\'tgan');
+           authError.message = lang === 'ru' ? 'Этот email уже зарегистрирован' : 'Bu email allaqachon ro\'yxatdan o\'tgan';
         }
       }
 
-      if (authError) throw authError;
+      if (authError) {
+         // Log failed login
+         if (isLoginMode && data?.user) {
+            await supabase.from('login_logs').insert({ user_id: data.user.id, email, ip_address: ip, device_info: deviceInfo, status: 'failed', failed_reason: authError.message });
+         } else {
+            await supabase.from('login_logs').insert({ email, ip_address: ip, device_info: deviceInfo, status: 'failed', failed_reason: authError.message });
+         }
+         throw authError;
+      }
 
       if (data?.user) {
+        // Log successful login
+        await supabase.from('login_logs').insert({ user_id: data.user.id, email, ip_address: ip, device_info: deviceInfo, status: 'success' });
+        
         onAuthSuccess({ 
           email: data.user.email,
           id: data.user.id
@@ -266,22 +303,25 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
             </div>
           )}
 
-          {/* Real Turnstile Badge */}
-          <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0 16px 0' }}>
-            <Turnstile
-              siteKey={(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
-                ? '1x00000000000000000000AA' 
-                : (import.meta.env.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAAD4qwtEx-Te2xmAn')}
-              onSuccess={(token) => {
-                setTurnstileToken(token);
-                setError(null);
-              }}
-              onError={() => setError(lang === 'ru' ? 'Ошибка проверки' : 'Tekshiruv xatosi')}
-              options={{
-                theme: 'light',
-              }}
-            />
-          </div>
+          {/* Real Turnstile Badge - Hidden on localhost */}
+          {window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && (
+            <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0 16px 0' }}>
+              <Turnstile
+                siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAAD4qwtEx-Te2xmAn'}
+                onSuccess={(token) => {
+                  setTurnstileToken(token);
+                  setError(null);
+                }}
+                onError={() => {
+                  setTurnstileToken(null);
+                  setError(lang === 'ru' ? 'Ошибка проверки' : 'Tekshiruv xatosi');
+                }}
+                options={{
+                  theme: 'light',
+                }}
+              />
+            </div>
+          )}
 
           {/* Submit Button */}
           <button type="submit" className="btn-auth-primary" disabled={loading}>

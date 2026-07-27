@@ -6,7 +6,10 @@ import AdminTests from './views/AdminTests';
 import AdminSettings from './views/AdminSettings';
 import AdminAnalytics from './views/AdminAnalytics';
 import AdminNotifications from './views/AdminNotifications';
-import { BarChart2, Bell } from 'lucide-react';
+import AdminAuditLogs from './views/AdminAuditLogs';
+import AdminReports from './views/AdminReports';
+import AdminSecurity from './views/AdminSecurity';
+import { BarChart2, Bell, Shield, FileText, List } from 'lucide-react';
 import './Admin.css';
 
 export default function AdminLayout({ user, onLogout, onExitAdmin }) {
@@ -22,7 +25,10 @@ export default function AdminLayout({ user, onLogout, onExitAdmin }) {
     { id: 'users', label: 'Foydalanuvchilar', icon: Users },
     { id: 'tests', label: 'Testlar', icon: BookOpen },
     { id: 'analytics', label: 'Analitika (QA)', icon: BarChart2 },
+    { id: 'reports', label: 'Hisobotlar', icon: FileText },
     { id: 'notifications', label: 'Xabarnomalar', icon: Bell },
+    { id: 'audit', label: 'Audit Jurnali', icon: List },
+    { id: 'security', label: 'Xavfsizlik', icon: Shield },
     { id: 'settings', label: 'Sozlamalar', icon: Settings },
   ];
 
@@ -68,7 +74,10 @@ export default function AdminLayout({ user, onLogout, onExitAdmin }) {
         {activeView === 'users' && <AdminUsers />}
         { activeView === 'tests' && <AdminTests /> }
         { activeView === 'analytics' && <AdminAnalytics /> }
+        { activeView === 'reports' && <AdminReports /> }
         { activeView === 'notifications' && <AdminNotifications /> }
+        { activeView === 'audit' && <AdminAuditLogs /> }
+        { activeView === 'security' && <AdminSecurity /> }
         { activeView === 'settings' && <AdminSettings /> }
       </main>
     </div>

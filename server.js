@@ -66,7 +66,12 @@ app.use((req, res, next) => {
   next();
 });
 
-const keyGenerator = (req) => req.user?.id || req.ip;
+const keyGenerator = (req) => {
+  if (req.user && req.user.id) return req.user.id;
+  // express-rate-limit complains if we just return req.ip for IPv6 (::1).
+  // Safely fallback:
+  return req.ip === '::1' ? '127.0.0.1' : (req.ip || 'unknown');
+};
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 min
@@ -563,7 +568,13 @@ app.post('/api/submit-exam', authMiddleware, apiLimiter, async (req, res) => {
 
       if (userAns !== undefined && userAns !== null && q.question_type !== 'written') {
         const correctAns = (q.correct_answer_text || '').toString().trim();
-        const correctOptionStr = (q.options && q.options[q.correct_option_index]) ? q.options[q.correct_option_index].toString().trim() : '';
+        
+        let parsedOptions = q.options;
+        if (typeof parsedOptions === 'string') {
+          try { parsedOptions = JSON.parse(parsedOptions); } catch(e) {}
+        }
+        
+        const correctOptionStr = (parsedOptions && parsedOptions[q.correct_option_index]) ? parsedOptions[q.correct_option_index].toString().trim() : '';
         const userAnsStr = userAns.toString().trim();
         
         if (userAnsStr === correctAns || (correctOptionStr !== '' && userAnsStr === correctOptionStr)) {
@@ -593,7 +604,7 @@ app.post('/api/submit-exam', authMiddleware, apiLimiter, async (req, res) => {
         points: pts,
         is_correct: isCorrect,
         user_answer: userAns,
-        correct: q.question_type === 'written' ? q.correct_answer_text : (q.options ? q.options[q.correct_option_index] : '')
+        correct: q.question_type === 'written' ? q.correct_answer_text : ((typeof q.options === 'string' ? (() => { try { return JSON.parse(q.options)[q.correct_option_index]; } catch(e) { return ''; } })() : (q.options ? q.options[q.correct_option_index] : '')))
       });
     }
 
@@ -614,9 +625,30 @@ app.post('/api/submit-exam', authMiddleware, apiLimiter, async (req, res) => {
 
 app.post('/api/start-practice', authMiddleware, apiLimiter, async (req, res) => {
   try {
-    const { questionIds } = req.body; // Frontend explicitly requested specific question IDs after metadata filtering
+    const { questionIds, subject, difficulty, count } = req.body; 
     const userId = req.user.id;
 
+    if (subject && count) {
+      // 1. RANDOM GENERATION MODE
+      const userClient = getUserSupabase(req);
+      
+      const diffArray = Array.isArray(difficulty) && difficulty.length > 0 ? difficulty : null;
+      
+      const { data: sessionId, error: rpcError } = await userClient.rpc('generate_random_practice_session', { 
+        p_subject: subject, 
+        p_difficulties: diffArray, 
+        p_limit: count 
+      });
+
+      if (rpcError || !sessionId) {
+        console.error('Session generation failed:', rpcError);
+        return res.status(500).json({ error: 'Amaliyot yaratishda xatolik yuz berdi' });
+      }
+
+      return res.json({ success: true, sessionId });
+    }
+
+    // 2. RETRY MISTAKES MODE (requires explicit valid questionIds)
     if (!questionIds || !Array.isArray(questionIds) || questionIds.length === 0) {
       return res.status(400).json({ error: 'questionIds array is required' });
     }
@@ -625,12 +657,12 @@ app.post('/api/start-practice', authMiddleware, apiLimiter, async (req, res) => 
       return res.status(400).json({ error: 'Too many questions (max 200)' });
     }
 
-    // 1. Validate questionIds
+    // Validate questionIds
     const { data: validQs, error: validErr } = await supabaseAdmin
       .from('questions')
       .select('id, test_id')
       .in('id', questionIds)
-      .eq('status', 'approved');
+      .in('status', ['approved', 'published']);
 
     if (validErr || !validQs || validQs.length === 0) {
        return res.status(400).json({ error: 'Invalid question IDs' });
@@ -640,8 +672,7 @@ app.post('/api/start-practice', authMiddleware, apiLimiter, async (req, res) => 
     const { data: validTests } = await supabaseAdmin
       .from('mock_tests')
       .select('id')
-      .in('id', testIds)
-      .eq('is_hidden', false);
+      .in('id', testIds);
     
     if (!validTests) return res.status(400).json({ error: 'Invalid test IDs' });
     

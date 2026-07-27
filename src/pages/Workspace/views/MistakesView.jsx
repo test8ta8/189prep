@@ -17,7 +17,7 @@ export default function MistakesView({ lang, onStartMistakeRetry }) {
       // For simplicity in JS:
       const { data: allAttempts } = await supabase
         .from('attempts')
-        .select('question_id, is_correct, created_at, questions(text, topic)')
+        .select('question_id, is_correct, created_at, questions(text, topic, mock_tests(title))')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -36,7 +36,8 @@ export default function MistakesView({ lang, onStartMistakeRetry }) {
             currentMistakes.push({
               question_id: qid,
               text: att.questions?.text,
-              topic: att.questions?.topic
+              topic: att.questions?.topic,
+              mock_title: att.questions?.mock_tests?.title
             });
           }
         });
@@ -77,7 +78,7 @@ export default function MistakesView({ lang, onStartMistakeRetry }) {
             <div key={m.question_id} style={{ padding: '16px', background: 'white', borderRadius: '8px', border: '1px solid rgba(15, 23, 42, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <span style={{ fontSize: '12px', background: 'rgba(15, 23, 42, 0.04)', padding: '4px 8px', borderRadius: '4px', color: 'rgba(15, 23, 42, 0.6)', marginBottom: '8px', display: 'inline-block' }}>
-                  {m.topic || 'Umumiy'}
+                  {m.mock_title ? m.mock_title : (m.topic || 'Umumiy')}
                 </span>
                 <p style={{ margin: 0, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                   {m.text}

@@ -9,7 +9,7 @@ export default function CustomTestSetupView({ lang, onStartCustomTest }) {
   const [duration, setDuration] = useState(60);
 
   const toggleDifficulty = (level) => {
-    setDifficulty(prev => 
+    setDifficulty(prev =>
       prev.includes(level) ? prev.filter(d => d !== level) : [...prev, level]
     );
   };
@@ -27,7 +27,7 @@ export default function CustomTestSetupView({ lang, onStartCustomTest }) {
         alert("Tanlangan fanga oid testlar topilmadi.");
         return;
       }
-      
+
       const testIds = testData.map(t => t.id);
 
       // 2. Call RPC to get question metadata for those tests
@@ -68,12 +68,12 @@ export default function CustomTestSetupView({ lang, onStartCustomTest }) {
     <div className="practice-setup-container" style={{ padding: '24px' }}>
       <h2>{lang === 'uz' ? 'Moslashtirilgan Imtihon' : 'Пользовательский экзамен'}</h2>
       <p style={{ color: 'rgba(15, 23, 42, 0.5)', marginBottom: '24px' }}>O'zingiz xohlagan parametrlarda imtihon tuzing va vaqtga qarab ishlashni mashq qiling.</p>
-      
+
       <div style={{ background: 'white', padding: '24px', borderRadius: '12px', border: '1px solid rgba(15, 23, 42, 0.1)', marginBottom: '24px' }}>
         <h3 style={{ fontSize: '16px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Settings2 size={18} /> Imtihon sozlamalari
         </h3>
-        
+
         <div style={{ marginBottom: '16px' }}>
           <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Fan</label>
           <select value={subject} onChange={(e) => setSubject(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid rgba(15, 23, 42, 0.15)' }}>
@@ -87,7 +87,7 @@ export default function CustomTestSetupView({ lang, onStartCustomTest }) {
           <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Qiyinlik darajasi (aralash qoldirish mumkin)</label>
           <div style={{ display: 'flex', gap: '12px' }}>
             {['easy', 'medium', 'hard'].map(level => (
-              <button 
+              <button
                 key={level}
                 onClick={() => toggleDifficulty(level)}
                 style={{
@@ -108,24 +108,24 @@ export default function CustomTestSetupView({ lang, onStartCustomTest }) {
         <div style={{ display: 'flex', gap: '24px', marginBottom: '24px' }}>
           <div style={{ flex: 1 }}>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Savollar soni: {count}</label>
-            <input 
-              type="range" 
-              min="5" 
-              max="100" 
-              step="5" 
-              value={count} 
+            <input
+              type="range"
+              min="5"
+              max="100"
+              step="5"
+              value={count}
               onChange={(e) => setCount(parseInt(e.target.value))}
               style={{ width: '100%' }}
             />
           </div>
           <div style={{ flex: 1 }}>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Vaqt: {duration} daqiqa</label>
-            <input 
-              type="range" 
-              min="10" 
-              max="180" 
-              step="10" 
-              value={duration} 
+            <input
+              type="range"
+              min="10"
+              max="180"
+              step="10"
+              value={duration}
               onChange={(e) => setDuration(parseInt(e.target.value))}
               style={{ width: '100%' }}
             />
@@ -133,7 +133,7 @@ export default function CustomTestSetupView({ lang, onStartCustomTest }) {
         </div>
 
         <div style={{ padding: '16px', background: 'rgba(15, 23, 42, 0.03)', borderRadius: '8px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-          <button 
+          <button
             onClick={handleStart}
             style={{
               padding: '12px 24px',

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Bookmark, Play } from 'lucide-react';
+import { Bookmark, Play, Edit3, Save, X } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 
 export default function BookmarksView({ lang, onStartMistakeRetry }) {
   const [bookmarks, setBookmarks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [editingNote, setEditingNote] = useState(null);
+  const [noteValue, setNoteValue] = useState('');
 
   useEffect(() => {
     loadBookmarks();
@@ -16,7 +18,7 @@ export default function BookmarksView({ lang, onStartMistakeRetry }) {
 
     const { data } = await supabase
       .from('bookmarks')
-      .select('question_id, created_at, questions(text, topic)')
+      .select('question_id, created_at, note_text, questions(text, topic, mock_tests(title))')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
@@ -32,6 +34,25 @@ export default function BookmarksView({ lang, onStartMistakeRetry }) {
     
     await supabase.from('bookmarks').delete().match({ user_id: user.id, question_id: questionId });
     setBookmarks(prev => prev.filter(b => b.question_id !== questionId));
+  };
+
+  const saveNote = async (questionId) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase
+      .from('bookmarks')
+      .update({ note_text: noteValue })
+      .match({ user_id: user.id, question_id: questionId });
+
+    if (!error) {
+      setBookmarks(prev => prev.map(b => 
+        b.question_id === questionId ? { ...b, note_text: noteValue } : b
+      ));
+      setEditingNote(null);
+    } else {
+      alert(lang === 'uz' ? 'Eslatmani saqlashda xatolik yuz berdi.' : 'Ошибка при сохранении заметки.');
+    }
   };
 
   if (loading) {
@@ -61,29 +82,73 @@ export default function BookmarksView({ lang, onStartMistakeRetry }) {
       ) : (
         <div style={{ display: 'grid', gap: '12px' }}>
           {bookmarks.map(b => (
-            <div key={b.question_id} style={{ padding: '16px', background: 'white', borderRadius: '8px', border: '1px solid rgba(15, 23, 42, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontSize: '12px', background: 'rgba(37, 99, 235, 0.1)', padding: '4px 8px', borderRadius: '4px', color: '#0F172A', marginBottom: '8px', display: 'inline-block' }}>
-                  {b.questions?.topic || 'Umumiy'}
-                </span>
-                <p style={{ margin: 0, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                  {b.questions?.text}
-                </p>
+            <div key={b.question_id} style={{ padding: '16px', background: 'white', borderRadius: '8px', border: '1px solid rgba(15, 23, 42, 0.1)', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <span style={{ fontSize: '12px', background: 'rgba(37, 99, 235, 0.1)', padding: '4px 8px', borderRadius: '4px', color: '#0F172A', marginBottom: '8px', display: 'inline-block' }}>
+                    {b.questions?.mock_tests?.title ? b.questions.mock_tests.title : (b.questions?.topic || 'Umumiy')}
+                  </span>
+                  <p style={{ margin: 0, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                    {b.questions?.text}
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginLeft: '16px', flexShrink: 0 }}>
+                  <button 
+                    onClick={() => removeBookmark(b.question_id)}
+                    style={{ padding: '6px 12px', background: 'white', color: '#0F172A', border: '1px solid rgba(15, 23, 42, 0.1)', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    O'chirish
+                  </button>
+                  <button 
+                    onClick={() => onStartMistakeRetry([b.question_id])}
+                    style={{ padding: '6px 12px', background: 'rgba(37, 99, 235, 0.08)', color: '#2563EB', border: '1px solid rgba(37, 99, 235, 0.2)', borderRadius: '6px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    Ishlash
+                  </button>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: '8px', marginLeft: '16px' }}>
-                <button 
-                  onClick={() => removeBookmark(b.question_id)}
-                  style={{ padding: '6px 12px', background: 'white', color: '#0F172A', border: '1px solid rgba(15, 23, 42, 0.1)', borderRadius: '6px', cursor: 'pointer' }}
-                >
-                  O'chirish
-                </button>
-                <button 
-                  onClick={() => onStartMistakeRetry([b.question_id])}
-                  style={{ padding: '6px 12px', background: 'rgba(37, 99, 235, 0.08)', color: '#2563EB', border: '1px solid rgba(37, 99, 235, 0.2)', borderRadius: '6px', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                >
-                  Ishlash
-                </button>
+
+              {/* Notes Section */}
+              <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(15, 23, 42, 0.05)' }}>
+                {editingNote === b.question_id ? (
+                  <div>
+                    <textarea
+                      autoFocus
+                      value={noteValue}
+                      onChange={(e) => setNoteValue(e.target.value)}
+                      placeholder={lang === 'uz' ? 'Eslatma matnini kiriting...' : 'Введите текст заметки...'}
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #2563EB', outline: 'none', resize: 'vertical', minHeight: '60px', marginBottom: '8px', fontSize: '14px' }}
+                    />
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => saveNote(b.question_id)} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: '#2563EB', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
+                        <Save size={14} /> {lang === 'uz' ? 'Saqlash' : 'Сохранить'}
+                      </button>
+                      <button onClick={() => setEditingNote(null)} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: 'rgba(15, 23, 42, 0.05)', color: '#0F172A', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
+                        <X size={14} /> {lang === 'uz' ? 'Bekor qilish' : 'Отмена'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    {b.note_text ? (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: 'rgba(245, 158, 11, 0.05)', padding: '12px', borderRadius: '8px', borderLeft: '3px solid #F59E0B' }}>
+                        <p style={{ margin: 0, fontSize: '14px', color: '#0F172A', whiteSpace: 'pre-wrap' }}>{b.note_text}</p>
+                        <button onClick={() => { setEditingNote(b.question_id); setNoteValue(b.note_text); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#F59E0B', padding: '4px' }}>
+                          <Edit3 size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button 
+                        onClick={() => { setEditingNote(b.question_id); setNoteValue(''); }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: 'none', color: '#64748B', fontSize: '13px', cursor: 'pointer', padding: 0 }}
+                      >
+                        <Edit3 size={14} /> {lang === 'uz' ? 'Eslatma qo\'shish' : 'Добавить заметку'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
+
             </div>
           ))}
         </div>

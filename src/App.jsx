@@ -27,7 +27,6 @@ export default function App() {
   const [viewMode, setViewMode] = useState(() => loadState('app_viewMode', 'workspace'));
   const [activeTestId, setActiveTestId] = useState(() => loadState('app_activeTestId', null));
   const [customTestConfig, setCustomTestConfig] = useState(() => loadState('app_customTestConfig', null));
-  const [practiceConfig, setPracticeConfig] = useState(() => loadState('app_practiceConfig', null));
   const [mistakeRetryIds, setMistakeRetryIds] = useState(() => loadState('app_mistakeRetryIds', null));
   const [pendingSubject, setPendingSubject] = useState('uzbek');
   const [isInitializing, setIsInitializing] = useState(true);
@@ -38,7 +37,6 @@ export default function App() {
   useEffect(() => localStorage.setItem('app_viewMode', JSON.stringify(viewMode)), [viewMode]);
   useEffect(() => localStorage.setItem('app_activeTestId', JSON.stringify(activeTestId)), [activeTestId]);
   useEffect(() => localStorage.setItem('app_customTestConfig', JSON.stringify(customTestConfig)), [customTestConfig]);
-  useEffect(() => localStorage.setItem('app_practiceConfig', JSON.stringify(practiceConfig)), [practiceConfig]);
   useEffect(() => localStorage.setItem('app_mistakeRetryIds', JSON.stringify(mistakeRetryIds)), [mistakeRetryIds]);
 
   // Helper to fetch role and profile data
@@ -221,7 +219,7 @@ export default function App() {
       return (
         <PracticeLayout 
           user={user}
-          config={practiceConfig}
+          config={null}
           retryIds={mistakeRetryIds}
           onExit={() => setViewMode('workspace')}
         />
@@ -246,14 +244,8 @@ export default function App() {
           }
           setViewMode('exam');
         }}
-        onStartPractice={(config) => {
-          setPracticeConfig(config);
-          setMistakeRetryIds(null);
-          setViewMode('practice-arena');
-        }}
         onStartMistakeRetry={(ids) => {
           setMistakeRetryIds(ids);
-          setPracticeConfig(null);
           setViewMode('practice-arena');
         }}
         onStartCustomExam={(config) => {

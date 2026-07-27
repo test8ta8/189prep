@@ -27,6 +27,45 @@ export default function AiTutorView({ lang, user, stats, onNavigate }) {
   const [activeSessionId, setActiveSessionId] = useState(sessions[0]?.id);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [aiContext, setAiContext] = useState(stats);
+
+  useEffect(() => {
+    async function loadMistakesForAI() {
+      if (!user) return;
+      const { data: allAttempts } = await supabase
+        .from('attempts')
+        .select('question_id, is_correct, created_at, questions(text, topic, mock_tests(title))')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(50); // Get last 50 attempts
+
+      if (allAttempts) {
+        const statusMap = new Map();
+        for (const att of allAttempts) {
+          if (!statusMap.has(att.question_id)) {
+            statusMap.set(att.question_id, att);
+          }
+        }
+        
+        const currentMistakes = [];
+        statusMap.forEach((att) => {
+          if (!att.is_correct) {
+            currentMistakes.push({
+              text: att.questions?.text,
+              topic: att.questions?.topic,
+              mock: att.questions?.mock_tests?.title
+            });
+          }
+        });
+        
+        setAiContext(prev => ({
+           ...prev,
+           recent_mistakes_from_mocks: currentMistakes.slice(0, 5)
+        }));
+      }
+    }
+    loadMistakesForAI();
+  }, [user, stats]);
 
   useEffect(() => {
     if (user && sessions.length > 0) {
@@ -91,7 +130,7 @@ export default function AiTutorView({ lang, user, stats, onNavigate }) {
           history: currentSession.messages,
           message: input,
           lang,
-          userContext: stats
+          userContext: aiContext
         })
       });
 

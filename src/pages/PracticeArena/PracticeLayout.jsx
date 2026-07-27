@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  FileText, HelpCircle, Calculator, Bookmark, LogOut, 
+import {
+  FileText, HelpCircle, Calculator, Bookmark, LogOut,
   Moon, ChevronLeft, ChevronRight, CheckCircle, XCircle, ArrowLeft
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -11,12 +11,12 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sessionId, setSessionId] = useState(null);
-  
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState({}); // { questionId: selectedOptionIndex }
   const [checkedAnswers, setCheckedAnswers] = useState({}); // { questionId: boolean }
   const [bookmarks, setBookmarks] = useState(new Set()); // Set of questionIds
-  
+
   // Modals state
   const [showCalculator, setShowCalculator] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
@@ -27,31 +27,52 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
       try {
         setLoading(true);
         let qData = [];
-        let finalIds = [];
-        
+        let payload = null;
+
         if (retryIds && retryIds.length > 0) {
-          finalIds = retryIds;
+          payload = { questionIds: retryIds };
         } else if (config && config.questionIds) {
-          finalIds = config.questionIds;
+          payload = { questionIds: config.questionIds };
+        } else if (config && config.subject) {
+          payload = { 
+            subject: config.subject, 
+            difficulty: config.difficulty, 
+            count: config.count 
+          };
         }
 
-        if (finalIds.length > 0) {
+        if (payload) {
           const tokenResult = await supabase.auth.getSession();
           const jwt = tokenResult.data.session?.access_token;
 
           const startRes = await fetch('/api/start-practice', {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
-             body: JSON.stringify({ questionIds: finalIds })
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+            body: JSON.stringify(payload)
           });
-          
-          if (!startRes.ok) throw new Error('Failed to start practice session');
+
+          if (!startRes.ok) {
+            const errData = await startRes.json();
+            throw new Error(errData.error || 'Amaliyotni boshlashda xatolik yuz berdi');
+          }
           const { sessionId: newSessionId } = await startRes.json();
           setSessionId(newSessionId);
 
-          const { data, error } = await supabase.rpc('get_practice_questions', { p_session_id: newSessionId });
-          if (error) throw new Error(error.message);
-          qData = data || [];
+          // Fetch questions securely via RPC
+          const { data: qsData, error: qsError } = await supabase.rpc('get_practice_questions', {
+            p_session_id: newSessionId
+          });
+            
+          if (qsError) throw new Error(qsError.message);
+          
+          // Map q_id to id if backend was updated to avoid ambiguity
+          const mappedData = (qsData || []).map(q => ({
+            ...q,
+            id: q.q_id || q.id
+          }));
+          
+          // Shuffle them randomly since DB might return them in ID order
+          qData = mappedData.sort(() => Math.random() - 0.5);
         }
 
         if (user && qData.length > 0) {
@@ -78,7 +99,7 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
           if (aData && aData.length > 0) {
             const initialAnswers = {};
             const initialChecked = {};
-            
+
             aData.forEach(attempt => {
               // Since it's ordered by created_at desc, the first one we see is the latest attempt
               if (initialAnswers[attempt.question_id] === undefined) {
@@ -99,14 +120,14 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
         setLoading(false);
       }
     }
-    
+
     loadData();
   }, [config, retryIds, user?.id]);
 
   const handleSelectOption = (questionId, optionIndex) => {
     // Don't allow changing answer if already checked
     if (checkedAnswers[questionId] !== undefined) return;
-    
+
     setAnswers(prev => ({
       ...prev,
       [questionId]: optionIndex
@@ -115,7 +136,7 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
 
   const toggleBookmark = async (questionId) => {
     const isBookmarked = bookmarks.has(questionId);
-    
+
     // Optimistic UI update
     setBookmarks(prev => {
       const newSet = new Set(prev);
@@ -145,13 +166,13 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
   const checkAnswer = async () => {
     const currentQ = questions[currentIndex];
     const selectedOpt = answers[currentQ.id];
-    
+
     if (selectedOpt === undefined || checkedAnswers[currentQ.id] !== undefined || !sessionId) return;
-    
+
     try {
       const tokenResult = await supabase.auth.getSession();
       const jwt = tokenResult.data.session?.access_token;
-      
+
       const res = await fetch('/api/check-answer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
@@ -163,12 +184,12 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
       });
 
       if (!res.ok) {
-         const errData = await res.json();
-         throw new Error(errData.error || 'Failed to check answer');
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to check answer');
       }
-      
+
       const data = await res.json();
-      
+
       setCheckedAnswers(prev => ({
         ...prev,
         [currentQ.id]: data.isCorrect
@@ -176,14 +197,17 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
 
       // Update the question object directly with the correct answer fetched from the server
       setQuestions(prevQs => prevQs.map(q => {
-         if (q.id === currentQ.id) {
-           // We inject the revealed correct answer to display it
-           const correctIdx = q.options ? q.options.findIndex(opt => String(opt).trim() === String(data.correctAnswer).trim()) : -1;
-           return { ...q, correct_option_index: correctIdx, correct_answer_text: data.correctAnswer, explanation_uz: data.explanation_uz, explanation_ru: data.explanation_ru };
-         }
-         return q;
+        if (q.id === currentQ.id) {
+          // We inject the revealed correct answer to display it
+          const correctIdx = data.correctOptionIndex !== undefined && data.correctOptionIndex !== null 
+            ? data.correctOptionIndex 
+            : (q.options ? q.options.findIndex(opt => String(opt).trim() === String(data.correctAnswer).trim()) : -1);
+            
+          return { ...q, correct_option_index: correctIdx, correct_answer_text: data.correctAnswer, explanation_uz: data.explanation_uz, explanation_ru: data.explanation_ru };
+        }
+        return q;
       }));
-      
+
     } catch (err) {
       console.error("Error checking answer", err);
       alert('Xatolik yuz berdi: ' + err.message);
@@ -239,16 +263,16 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
         </div>
         <nav className="exam-nav">
           <button className="exam-nav-item active"><FileText size={18} /> Amaliyot</button>
-          
+
           <button className="exam-nav-item mobile-only-nav" onClick={() => {
             const grid = document.querySelector('.exam-grid-section');
-            if(grid) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }}>
             <HelpCircle size={18} /> Savollar
           </button>
-          
 
-          
+
+
           <button className={`exam-nav-item ${showBookmarks ? 'active' : ''}`} onClick={() => setShowBookmarks(!showBookmarks)}>
             <Bookmark size={18} /> Eslatmalar
           </button>
@@ -319,27 +343,27 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
                   <span className="exam-tag-type">{currentQ.question_type === 'written' ? 'Yozma javob' : currentQ.difficulty || 'Normal'}</span>
                 </div>
                 <button className="exam-bookmark-btn" onClick={() => toggleBookmark(currentQ.id)}>
-                  <Bookmark size={16} fill={bookmarks.has(currentQ.id) ? "currentColor" : "none"} /> 
+                  <Bookmark size={16} fill={bookmarks.has(currentQ.id) ? "currentColor" : "none"} />
                   Eslatmaga qo'shish
                 </button>
               </div>
 
               <div className="exam-q-text"><MathText>{currentQ.text}</MathText></div>
-              
+
               {currentQ.image_url && (
                 <img src={currentQ.image_url} alt="Savol rasmi" className="exam-q-image" />
               )}
 
               {currentQ.question_type === 'written' ? (
                 <div className="exam-written-answer">
-                  <textarea 
+                  <textarea
                     placeholder="Javobingizni shu yerga kiriting..."
                     value={answers[currentQ.id] || ''}
-                    onChange={(e) => setAnswers(prev => ({...prev, [currentQ.id]: e.target.value}))}
+                    onChange={(e) => setAnswers(prev => ({ ...prev, [currentQ.id]: e.target.value }))}
                     disabled={isCurrentChecked}
-                    style={{ 
-                      width: '100%', minHeight: '100px', padding: '16px', borderRadius: '12px', 
-                      border: isCurrentChecked && isCurrentCorrect ? '2px solid #22C55E' : isCurrentChecked && !isCurrentCorrect ? '2px solid #EF4444' : '1px solid rgba(15, 23, 42, 0.2)', 
+                    style={{
+                      width: '100%', minHeight: '100px', padding: '16px', borderRadius: '12px',
+                      border: isCurrentChecked && isCurrentCorrect ? '2px solid #22C55E' : isCurrentChecked && !isCurrentCorrect ? '2px solid #EF4444' : '1px solid rgba(15, 23, 42, 0.2)',
                       fontSize: '16px', color: '#0F172A', resize: 'vertical',
                       background: isCurrentChecked && isCurrentCorrect ? '#F0FDF4' : isCurrentChecked && !isCurrentCorrect ? '#FEF2F2' : 'white'
                     }}
@@ -353,10 +377,10 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
                   {currentQ.options && Array.isArray(currentQ.options) && currentQ.options.map((opt, idx) => {
                     const isSelected = selectedCurrentOpt === idx;
                     const isCorrectAnswer = idx === currentQ.correct_option_index;
-                    
+
                     let optionClass = 'exam-option';
                     if (isSelected) optionClass += ' selected';
-                    
+
                     // Reveal colors if checked
                     if (isCurrentChecked) {
                       if (isCorrectAnswer) optionClass += ' correct-option';
@@ -365,10 +389,10 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
 
                     const labels = ['A', 'B', 'C', 'D', 'E'];
                     return (
-                      <div key={idx} 
-                        className={optionClass} 
+                      <div key={idx}
+                        className={optionClass}
                         onClick={() => handleSelectOption(currentQ.id, idx)}
-                        style={{ 
+                        style={{
                           pointerEvents: isCurrentChecked ? 'none' : 'auto',
                           borderColor: isCurrentChecked && isCorrectAnswer ? '#22C55E' : isCurrentChecked && isSelected && !isCorrectAnswer ? '#0F172A' : ''
                         }}
@@ -378,7 +402,7 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
                         </div>
                         <span className="exam-option-label">{labels[idx]}.</span>
                         <span className="exam-option-text"><MathText>{opt}</MathText></span>
-                        
+
                         {isCurrentChecked && isCorrectAnswer && <CheckCircle size={18} color="#22C55E" style={{ marginLeft: 'auto' }} />}
                         {isCurrentChecked && isSelected && !isCorrectAnswer && <XCircle size={18} color="#0F172A" style={{ marginLeft: 'auto' }} />}
                       </div>
@@ -390,7 +414,7 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
               {/* Check Answer Button */}
               {!isCurrentChecked && (
                 <div style={{ marginTop: '24px', textAlign: 'right' }}>
-                  <button 
+                  <button
                     onClick={checkAnswer}
                     disabled={selectedCurrentOpt === undefined}
                     style={{
@@ -410,10 +434,10 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
 
               {/* Explanation Panel */}
               {isCurrentChecked && (
-                <div style={{ 
-                  marginTop: '24px', 
-                  padding: '20px', 
-                  background: isCurrentCorrect ? '#F0FDF4' : 'rgba(15, 23, 42, 0.04)', 
+                <div style={{
+                  marginTop: '24px',
+                  padding: '20px',
+                  background: isCurrentCorrect ? '#F0FDF4' : 'rgba(15, 23, 42, 0.04)',
                   border: `1px solid ${isCurrentCorrect ? '#BBF7D0' : 'rgba(15, 23, 42, 0.1)'}`,
                   borderRadius: '12px'
                 }}>
@@ -435,15 +459,15 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
               )}
 
               <div className="exam-controls" style={{ marginTop: '32px' }}>
-                <button 
-                  className="exam-btn-outline" 
+                <button
+                  className="exam-btn-outline"
                   disabled={currentIndex === 0}
                   onClick={() => setCurrentIndex(prev => prev - 1)}
                 >
                   <ChevronLeft size={16} /> Oldingi
                 </button>
 
-                <button 
+                <button
                   className="exam-btn-primary"
                   disabled={currentIndex === questions.length - 1}
                   onClick={() => setCurrentIndex(prev => prev + 1)}
@@ -471,7 +495,7 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
                   const isChecked = checkedAnswers[q.id] !== undefined;
                   const isCorrect = checkedAnswers[q.id];
                   const isBookmarked = bookmarks.has(q.id);
-                  
+
                   let classes = 'grid-btn';
                   if (isCurrent) classes += ' current';
                   else if (isChecked) {
@@ -480,9 +504,9 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
                   if (isBookmarked) classes += ' bookmarked';
 
                   return (
-                    <button 
-                      key={q.id} 
-                      className={classes} 
+                    <button
+                      key={q.id}
+                      className={classes}
                       onClick={() => setCurrentIndex(i)}
                       style={{
                         background: isChecked && !isCurrent ? (isCorrect ? '#DCFCE7' : '#FEE2E2') : '',
@@ -502,7 +526,7 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
         {/* Modals Overlay */}
         {(showCalculator || showBookmarks) && (
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.4)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={(e) => {
-            if(e.target === e.currentTarget) {
+            if (e.target === e.currentTarget) {
               setShowCalculator(false);
               setShowBookmarks(false);
             }
@@ -516,7 +540,7 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
                   <h3 style={{ margin: 0, fontSize: '16px', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}><Bookmark size={18} color="#2563EB" /> Eslatmalar ({bookmarks.size})</h3>
                   <button onClick={() => setShowBookmarks(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(15, 23, 42, 0.4)' }}>вњ•</button>
                 </div>
-                
+
                 <div style={{ overflowY: 'auto', flex: 1, paddingRight: '8px' }}>
                   {bookmarks.size === 0 ? (
                     <p style={{ color: 'rgba(15, 23, 42, 0.5)', textAlign: 'center', padding: '32px 0' }}>Hali hech qanday savol eslatmaga qo'shilmagan.</p>
@@ -525,7 +549,7 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
                       {questions.map((q, idx) => {
                         if (!bookmarks.has(q.id)) return null;
                         return (
-                          <button 
+                          <button
                             key={q.id}
                             onClick={() => jumpToQuestion(idx)}
                             style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px', border: '1px solid rgba(15, 23, 42, 0.1)', borderRadius: '8px', background: 'white', cursor: 'pointer', textAlign: 'left' }}

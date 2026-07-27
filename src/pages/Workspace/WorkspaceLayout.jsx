@@ -47,7 +47,6 @@ import PricingView from './views/PricingView';
 import MocksView from './views/MocksView';
 import ProgressView from './views/ProgressView';
 import AiTutorView from './views/AiTutorView';
-import PracticeSetupView from './views/PracticeSetupView';
 import CustomTestSetupView from './views/CustomTestSetupView';
 import MistakesView from './views/MistakesView';
 import BookmarksView from './views/BookmarksView';
@@ -55,7 +54,7 @@ import EssayReviewView from './views/EssayReviewView';
 import { supabase } from '../../lib/supabase';
 import './Workspace.css';
 
-export default function WorkspaceLayout({ user, lang, setLang, onLogout, isAdmin, onEnterAdmin, onStartExam, onStartPractice, onStartMistakeRetry, onStartCustomExam }) {
+export default function WorkspaceLayout({ user, lang, setLang, onLogout, isAdmin, onEnterAdmin, onStartExam, onStartMistakeRetry, onStartCustomExam }) {
   const [activeView, setActiveView] = useState(() => {
     const saved = localStorage.getItem('workspace_activeView');
     return saved ? JSON.parse(saved) : 'dashboard';
@@ -171,7 +170,6 @@ export default function WorkspaceLayout({ user, lang, setLang, onLogout, isAdmin
   const navItems = [
     { id: 'dashboard', icon: LayoutDashboard, labelUz: 'Bosh sahifa', labelRu: 'Главная' },
     { id: 'mocks', icon: FileText, labelUz: 'Mocklar', labelRu: 'Моки' },
-    { id: 'practice', icon: FileText, labelUz: 'Amaliyot', labelRu: 'Практика' },
     { id: 'bookmarks', icon: Bookmark, labelUz: 'Eslatmalar', labelRu: 'Закладки' },
     { id: 'progress', icon: TrendingUp, labelUz: 'Progress', labelRu: 'Прогресс' },
     { id: 'ai-tutor', icon: Bot, labelUz: 'AI ustoz', labelRu: 'ИИ-репетитор' },
@@ -184,8 +182,6 @@ export default function WorkspaceLayout({ user, lang, setLang, onLogout, isAdmin
         return <DashboardView lang={lang} user={user} onNavigate={setActiveView} stats={stats} />;
       case 'mocks':
         return <MocksView lang={lang} user={user} onStartExam={onStartExam} onNavigate={setActiveView} />;
-      case 'practice':
-        return <PracticeSetupView lang={lang} onStartPractice={onStartPractice} />;
       case 'custom-test':
         return <CustomTestSetupView lang={lang} onStartCustomTest={onStartCustomExam} />;
       case 'mistakes':
@@ -201,7 +197,7 @@ export default function WorkspaceLayout({ user, lang, setLang, onLogout, isAdmin
       case 'pricing':
         return <PricingView lang={lang} />;
       case 'profile':
-        return <ProfileView lang={lang} user={user} />;
+        return <ProfileView lang={lang} user={user} isAdmin={isAdmin} />;
       default:
         return <DashboardView lang={lang} user={user} onNavigate={setActiveView} stats={stats} />;
     }

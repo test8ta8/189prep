@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Mail, Phone, Target, GraduationCap, Lock, Save, Loader2, AlertTriangle, Calendar } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 
-export default function ProfileView({ lang, user }) {
+export default function ProfileView({ lang, user, isAdmin }) {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [successMsg, setSuccessMsg] = useState('');
@@ -103,6 +103,24 @@ export default function ProfileView({ lang, user }) {
     }
   };
 
+  const toggleAdminPro = async () => {
+    if (!user || !isAdmin) return;
+    try {
+      const isPro = user.subscription_tier !== 'free';
+      const newTier = isPro ? 'free' : 'pro';
+      const newUntil = isPro ? null : new Date(Date.now() + 365*24*60*60*1000).toISOString();
+      const { error } = await supabase.from('profiles').update({
+        subscription_tier: newTier,
+        subscription_until: newUntil
+      }).eq('id', user.id);
+      if (error) throw error;
+      window.location.reload();
+    } catch(err) {
+      console.error(err);
+      alert('Xatolik yuz berdi');
+    }
+  };
+
   return (
     <div className="profile-wrapper fade-in">
       <header className="dashboard-header" style={{ marginBottom: '24px' }}>
@@ -130,6 +148,15 @@ export default function ProfileView({ lang, user }) {
             <div className="profile-role-badge">
               {lang === 'uz' ? 'Foydalanuvchi' : 'Пользователь'}
             </div>
+            {isAdmin && (
+              <button 
+                onClick={toggleAdminPro} 
+                className="btn-outline-primary" 
+                style={{ marginTop: '16px', width: '100%', fontSize: '13px' }}
+              >
+                {user?.subscription_tier !== 'free' ? 'PRO o\'chirish (Admin)' : 'PRO yoqish (Admin)'}
+              </button>
+            )}
           </div>
 
           <div className="glass-panel profile-danger-zone">
