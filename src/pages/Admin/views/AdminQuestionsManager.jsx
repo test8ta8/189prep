@@ -624,9 +624,22 @@ export default function AdminQuestionsManager({ test, onBack }) {
             )}
             <div style={{ color: '#0F172A', marginBottom: '24px', fontSize: '16px', lineHeight: '1.5' }}><MathText>{q.text}</MathText></div>
             
-            {q.question_type === 'written' ? (
+            {q.question_type === 'written' || q.question_type === 'essay' ? (
               <div style={{ padding: '12px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #2563EB', borderRadius: '8px', color: '#0F172A', fontSize: '14px' }}>
-                <strong>To'g'ri javob:</strong> {q.correct_answer_text}
+                <strong>To'g'ri javob:</strong> {q.correct_answer_text || (q.question_type === 'essay' ? 'Esse' : '')}
+              </div>
+            ) : q.question_type === 'multipart_ab' ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div style={{ padding: '12px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #2563EB', borderRadius: '8px', color: '#0F172A', fontSize: '14px' }}>
+                  <strong>A qismi to'g'ri javobi:</strong> {(() => {
+                    try { return <MathText>{JSON.parse(q.correct_answer_text).a || '-'}</MathText>; } catch(e) { return <MathText>{q.correct_answer_text}</MathText>; }
+                  })()}
+                </div>
+                <div style={{ padding: '12px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #2563EB', borderRadius: '8px', color: '#0F172A', fontSize: '14px' }}>
+                  <strong>B qismi to'g'ri javobi:</strong> {(() => {
+                    try { return <MathText>{JSON.parse(q.correct_answer_text).b || '-'}</MathText>; } catch(e) { return '-'; }
+                  })()}
+                </div>
               </div>
             ) : q.question_type === 'matching' ? (
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
@@ -641,7 +654,7 @@ export default function AdminQuestionsManager({ test, onBack }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               {q.options && q.options.map((opt, i) => (
                 <div key={i} style={{ padding: '12px', background: q.correct_option_index === i ? 'rgba(16, 185, 129, 0.1)' : 'rgba(15, 23, 42, 0.03)', border: `1px solid ${q.correct_option_index === i ? '#2563EB' : 'transparent'}`, borderRadius: '8px', color: '#0F172A', fontSize: '14px', display: 'flex', gap: '8px' }}>
-                  <span style={{ color: q.correct_option_index === i ? '#2563EB' : 'rgba(15, 23, 42, 0.5)', fontWeight: 'bold' }}>{['A', 'B', 'C', 'D'][i]}.</span>
+                  <span style={{ color: q.correct_option_index === i ? '#2563EB' : 'rgba(15, 23, 42, 0.5)', fontWeight: 'bold' }}>{['A', 'B', 'C', 'D'][i] ? ['A', 'B', 'C', 'D'][i] + '.' : ''}</span>
                   <div style={{ flex: 1 }}><MathText>{opt}</MathText></div>
                 </div>
               ))}

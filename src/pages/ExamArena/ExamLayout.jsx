@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-  FileText, HelpCircle, Calculator, Bookmark, LogOut,
+  FileText, HelpCircle, Bookmark, LogOut,
   ChevronLeft, ChevronRight, Pause, Flag, ShieldAlert, HeadphonesIcon, ArrowLeft,
   PanelLeftClose, PanelLeftOpen, Clock, AlertCircle
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import DraggableCalculator from '../../components/exam/DraggableCalculator';
 import HighlightableText from '../../components/exam/HighlightableText';
 import ScoreReportModal from '../../components/exam/ScoreReportModal';
 import MathText from '../../components/MathText';
@@ -27,7 +26,6 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
   const [examResult, setExamResult] = useState(null);
 
   // Modals state
-  const [showCalculator, setShowCalculator] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -52,8 +50,10 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
 
   // Fetch test and questions
   useEffect(() => {
+    let ignore = false;
     async function loadData() {
       try {
+        if (ignore) return;
         setLoading(true);
 
         // Check if there's a recovered result from a page refresh
@@ -62,6 +62,7 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
           try {
             const recovered = JSON.parse(recoveredStr);
             if (recovered.subject.id === testId || (customConfig && recovered.subject.id === null)) {
+              if (ignore) return;
               setExamResult(recovered);
               setLoading(false);
               localStorage.removeItem('recovered_exam_result');
@@ -75,6 +76,7 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
 
         if (customConfig && customConfig.isALevel) {
           const currentPaper = customConfig.papers[currentPaperIndex];
+          if (ignore) return;
           setTestInfo(currentPaper);
           setTimeLeft(currentPaper.duration_minutes * 60);
 
@@ -89,6 +91,7 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
           
           if (!startRes.ok) throw new Error('Failed to start A-Level session');
           const { sessionId: newSessionId } = await startRes.json();
+          if (ignore) return;
           setSessionId(newSessionId);
 
           const qRes = await fetch('/api/get-exam-questions', {
@@ -98,6 +101,7 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
           });
           if (qRes.ok) {
             const { questions: qData } = await qRes.json();
+            if (ignore) return;
             if (qData) setQuestions(qData);
           }
 
@@ -116,9 +120,11 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
           
           if (!startRes.ok) throw new Error('Failed to start custom session');
           const { sessionId: newSessionId } = await startRes.json();
+          if (ignore) return;
           setSessionId(newSessionId);
 
           const { data: qData } = await supabase.rpc('get_practice_questions', { p_session_id: newSessionId });
+          if (ignore) return;
           if (qData) setQuestions(qData);
         } else if (testId) {
           // Fetch test info
@@ -129,6 +135,7 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
             .single();
 
           if (testData) {
+            if (ignore) return;
             setTestInfo(testData);
             setTimeLeft(testData.duration_minutes * 60);
           }
@@ -149,6 +156,7 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
           }
           
           const { sessionId: newSessionId } = await startRes.json();
+          if (ignore) return;
           setSessionId(newSessionId);
 
           // Fetch questions securely using the new endpoint
@@ -164,6 +172,7 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
           }
 
           const { questions: qData } = await qRes.json();
+          if (ignore) return;
           if (qData) {
             setQuestions(qData);
           }
@@ -175,18 +184,22 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
             .from('bookmarks')
             .select('question_id')
             .eq('user_id', user.id);
+          if (ignore) return;
           if (bData) {
             setBookmarks(new Set(bData.map(b => b.question_id)));
           }
         }
       } catch (error) {
         console.error("Error loading test", error);
+        if (ignore) return;
+        setTestInfo({ error: error.message });
       } finally {
-        setLoading(false);
+        if (!ignore) setLoading(false);
       }
     }
 
     if (testId || customConfig) loadData();
+    return () => { ignore = true; };
   }, [testId, customConfig, user?.id, currentPaperIndex]);
 
   // Timer logic for Exam
@@ -520,6 +533,9 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
 
       const timeSpentSecs = (testInfo ? testInfo.duration_minutes * 60 : 180 * 60) - timeLeft;
       
+      let serverQuestions = null;
+      let serverCorrectCount = correctAnswersCount;
+
       // 1. Submit answers to secure backend endpoint
       if (sessionId) {
         const tokenResult = await supabase.auth.getSession();
@@ -545,34 +561,45 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
 
         const data = await response.json();
         finalCalculatedScore = data.score; // Override local score with authoritative server score
+        if (data.gradedQuestions) {
+          serverQuestions = data.gradedQuestions;
+          serverCorrectCount = data.gradedQuestions.filter(q => q.is_correct).length;
+        }
       }
 
       setShowReviewModal(false);
 
+      const resultQuestions = serverQuestions || questions.map((q, i) => {
+        let pts = q.points || 1;
+        if (testInfo?.exam_system === 'dtm') {
+          if (i < 30) pts = 1.1;
+          else if (i < 60) pts = 3.1;
+          else pts = 2.1;
+        }
+        return {
+          ...q,
+          points: pts,
+          correct: q.question_type === 'written' ? q.correct_answer_text : (q.options ? q.options[q.correct_option_index] : '')
+        };
+      });
+
       const resultObj = {
         subject: { name: testInfo?.subject || 'Test', id: testId, system: testInfo?.exam_system || 'dtm' },
-        questions: questions.map((q, i) => {
-          let pts = q.points || 1;
-          if (testInfo?.exam_system === 'dtm') {
-            if (i < 30) pts = 1.1;
-            else if (i < 60) pts = 3.1;
-            else pts = 2.1;
-          }
-          return {
-            ...q,
-            points: pts,
-            correct: q.question_type === 'written' ? q.correct_answer_text : (q.options ? q.options[q.correct_option_index] : '')
-          };
-        }),
+        questions: resultQuestions,
         answers: Object.fromEntries(
           Object.entries(answers).map(([qid, ansVal]) => {
-            const q = questions.find(item => item.id === qid);
+            const q = resultQuestions.find(item => item.id === qid);
             if (!q) return [qid, null];
             if (q.question_type === 'written') return [qid, ansVal];
-            return [qid, q.options ? q.options[ansVal] : null];
+            
+            let opts = q.options;
+            if (typeof opts === 'string') {
+              try { opts = JSON.parse(opts); } catch(e) {}
+            }
+            return [qid, opts ? opts[ansVal] : null];
           })
         ),
-        correctCount: correctAnswersCount,
+        correctCount: serverQuestions ? serverCorrectCount : correctAnswersCount,
         earnedBall: finalCalculatedScore,
         maxBall: Number(finalMaxScore.toFixed(1)),
         timeSpent: formatTime(timeSpentSecs),
@@ -651,13 +678,14 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
   }
 
   const currentQ = questions[currentIndex];
-  if (!currentQ) {
+  if (questions.length === 0 && !loading) {
     return (
-      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.03)', gap: '16px' }}>
-        <p style={{ fontSize: '18px', color: '#0F172A', fontWeight: '500', margin: 0 }}>Bu test uchun savollar topilmadi.</p>
-        <button onClick={onExit} style={{ padding: '12px 24px', background: '#2563EB', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <ArrowLeft size={18} /> Ortga qaytish
-        </button>
+      <div className="exam-layout">
+        <div className="exam-error">
+            <h2>Savollar topilmadi</h2>
+            <p>{testInfo?.error ? `Xato: ${testInfo.error}` : 'Ushbu test uchun hali savollar kiritilmagan yoki yuklashda xatolik yuz berdi.'}</p>
+            <button onClick={onExit} className="btn-primary">Orqaga qaytish</button>
+        </div>
       </div>
     );
   }
@@ -712,12 +740,6 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
           <button className={`exam-nav-item ${showErrorReport ? 'active' : ''}`} title={isSidebarCollapsed ? 'Xatolik haqida' : ''} onClick={() => setShowErrorReport(true)}>
             <HelpCircle size={18} /> {!isSidebarCollapsed && 'Xatolik haqida'}
           </button>
-
-          {(testInfo?.subject?.toLowerCase().includes('matematika') || testInfo?.subject?.toLowerCase().includes('math')) && (
-            <button className={`exam-nav-item ${showCalculator ? 'active' : ''}`} title={isSidebarCollapsed ? 'Hisoblagich' : ''} onClick={() => setShowCalculator(!showCalculator)}>
-              <Calculator size={18} /> {!isSidebarCollapsed && 'Hisoblagich'}
-            </button>
-          )}
 
           <button className={`exam-nav-item ${showBookmarks ? 'active' : ''}`} title={isSidebarCollapsed ? 'Eslatma' : ''} onClick={() => setShowBookmarks(!showBookmarks)}>
             <Bookmark size={18} /> {!isSidebarCollapsed && 'Eslatma'}
@@ -1190,11 +1212,6 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
               </div>
             </div>
           </div>
-        )}
-
-        {/* Draggable Calculator Widget */}
-        {showCalculator && (
-          <DraggableCalculator onClose={() => setShowCalculator(false)} />
         )}
 
         {/* Review Modal */}

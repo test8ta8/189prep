@@ -4,6 +4,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
 import compression from 'compression';
+import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 
 dotenv.config();
@@ -109,6 +110,84 @@ const authMiddleware = async (req, res, next) => {
   req.user = data.user;
   next();
 };
+
+app.post('/api/auth/telegram', apiLimiter, async (req, res) => {
+  try {
+    const { id, first_name, last_name, username, photo_url, auth_date, hash } = req.body;
+    if (!id || !hash || !auth_date) {
+      return res.status(400).json({ error: 'Missing Telegram payload' });
+    }
+
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) {
+      console.error("TELEGRAM_BOT_TOKEN is missing in env");
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+
+    // Verify signature
+    const dataCheckString = Object.keys(req.body)
+      .filter(key => key !== 'hash')
+      .map(key => `${key}=${req.body[key]}`)
+      .sort()
+      .join('\n');
+    
+    const secretKey = crypto.createHash('sha256').update(botToken).digest();
+    const hmac = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+
+    if (hmac !== hash) {
+      return res.status(401).json({ error: 'Invalid Telegram signature' });
+    }
+
+    if (Date.now() / 1000 - auth_date > 86400) {
+      return res.status(401).json({ error: 'Telegram auth expired' });
+    }
+
+    const email = `tg_${id}@t.me`;
+    const password = crypto.createHmac('sha256', process.env.SUPABASE_SECRET_KEY || 'backup_secret').update(String(id)).digest('hex');
+
+    let { data: sessionData, error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (signInError) {
+      const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          full_name: `${first_name || ''} ${last_name || ''}`.trim() || username || 'Telegram User',
+          avatar_url: photo_url || '',
+          telegram_id: id,
+          telegram_username: username
+        }
+      });
+
+      if (createError) {
+        console.error("Error creating telegram user:", createError);
+        return res.status(500).json({ error: 'Failed to create user' });
+      }
+
+      const retrySignIn = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (retrySignIn.error) {
+        console.error("Error signing in after creation:", retrySignIn.error);
+        return res.status(500).json({ error: 'Failed to sign in after creation' });
+      }
+      
+      sessionData = retrySignIn.data;
+    }
+
+    return res.json({ session: sessionData.session, user: sessionData.user });
+
+  } catch (err) {
+    console.error("Telegram auth error:", err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 app.post('/parse-pdf', authMiddleware, aiLimiter, async (req, res) => {
   try {
