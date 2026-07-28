@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bookmark, Play, Edit3, Save, X } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
+import MathText from '../../../components/MathText';
 
 export default function BookmarksView({ lang, onStartMistakeRetry }) {
   const [bookmarks, setBookmarks] = useState([]);
@@ -88,9 +89,9 @@ export default function BookmarksView({ lang, onStartMistakeRetry }) {
                   <span style={{ fontSize: '12px', background: 'rgba(37, 99, 235, 0.1)', padding: '4px 8px', borderRadius: '4px', color: '#0F172A', marginBottom: '8px', display: 'inline-block' }}>
                     {b.questions?.mock_tests?.title ? b.questions.mock_tests.title : (b.questions?.topic || 'Umumiy')}
                   </span>
-                  <p style={{ margin: 0, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                    {b.questions?.text}
-                  </p>
+                  <div style={{ margin: 0, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                    <MathText>{b.questions?.text}</MathText>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', marginLeft: '16px', flexShrink: 0 }}>
                   <button 
