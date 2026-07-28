@@ -62,17 +62,24 @@ export default function ProfileView({ lang, user, isAdmin }) {
     
     setLoading(true);
     setSuccessMsg('');
-    
     try {
-      const { error } = await supabase.rpc('update_my_profile', {
-        p_full_name: formData.fullName,
-        p_phone: formData.phone,
-        p_target_score: formData.targetScore,
-        p_target_university: formData.targetUniversity,
+      // Clean up inputs to match SQL validation
+      const cleanPhone = formData.phone ? formData.phone.replace(/[\s-]/g, '') : null;
+      // If phone is just "+", treat as null
+      const finalPhone = (cleanPhone === '+' || cleanPhone === '') ? null : cleanPhone;
+
+      const { error, data } = await supabase.rpc('update_my_profile', {
+        p_full_name: formData.fullName?.trim() || null,
+        p_phone: finalPhone,
+        p_target_score: formData.targetScore?.trim() || null,
+        p_target_university: formData.targetUniversity?.trim() || null,
         p_exam_date: formData.examDate || null
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase RPC error details:', error);
+        throw error;
+      }
       
       onUpdateProfile({ 
         ...user, 
@@ -86,7 +93,7 @@ export default function ProfileView({ lang, user, isAdmin }) {
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (error) {
       console.error('Error saving profile:', error);
-      alert(lang === 'uz' ? 'Xatolik yuz berdi.' : 'Произошла ошибка.');
+      alert(lang === 'uz' ? `Xatolik yuz berdi: ${error.message || 'Iltimos qayta urinib ko\'ring'}` : `Произошла ошибка: ${error.message}`);
     } finally {
       setLoading(false);
     }

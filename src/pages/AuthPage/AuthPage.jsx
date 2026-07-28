@@ -36,7 +36,8 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
         data = JSON.parse(text);
       } catch (e) {
         console.error("Non-JSON response from server:", text);
-        throw new Error("Server API yangilanmagan. Iltimos server (backend) ni yangilang.");
+        const snippet = text.substring(0, 100).replace(/\n/g, ' ');
+        throw new Error(`Server xatosi: ${snippet}... Iltimos loyihani Vercel'dan to'g'ri Redeploy qiling.`);
       }
       
       if (!res.ok) {
