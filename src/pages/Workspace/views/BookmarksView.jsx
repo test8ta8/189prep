@@ -67,7 +67,9 @@ export default function BookmarksView({ lang, onStartMistakeRetry }) {
         {bookmarks.length > 0 && (
           <button 
             onClick={() => onStartMistakeRetry(bookmarks.map(b => b.question_id))}
-            style={{ padding: '8px 16px', background: '#2563EB', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+            style={{ padding: '10px 20px', background: '#2563EB', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 500, fontSize: '14px', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)' }}
+            onMouseOver={(e) => { e.currentTarget.style.background = '#1D4ED8'; }}
+            onMouseOut={(e) => { e.currentTarget.style.background = '#2563EB'; }}
           >
             <Play size={16} fill="currentColor" /> Barchasini ishlash
           </button>
@@ -81,67 +83,76 @@ export default function BookmarksView({ lang, onStartMistakeRetry }) {
           <p>Amaliyot yoki imtihon davomida muhim savollarni saqlab qo'yishingiz mumkin.</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: '12px' }}>
+        <div style={{ display: 'grid', gap: '16px' }}>
           {bookmarks.map(b => (
-            <div key={b.question_id} style={{ padding: '16px', background: 'white', borderRadius: '8px', border: '1px solid rgba(15, 23, 42, 0.1)', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <span style={{ fontSize: '12px', background: 'rgba(37, 99, 235, 0.1)', padding: '4px 8px', borderRadius: '4px', color: '#0F172A', marginBottom: '8px', display: 'inline-block' }}>
-                    {b.questions?.mock_tests?.title ? b.questions.mock_tests.title : (b.questions?.topic || 'Umumiy')}
-                  </span>
-                  <div style={{ margin: 0, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                    <MathText>{b.questions?.text}</MathText>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '8px', marginLeft: '16px', flexShrink: 0 }}>
+            <div key={b.question_id} style={{ background: 'white', borderRadius: '12px', border: '1px solid rgba(15, 23, 42, 0.08)', padding: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              
+              {/* Header: Badge & Actions */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', fontWeight: 500, background: '#EFF6FF', color: '#1D4ED8', padding: '6px 12px', borderRadius: '6px' }}>
+                  {b.questions?.mock_tests?.title ? b.questions.mock_tests.title : (b.questions?.topic || 'Umumiy')}
+                </span>
+                
+                <div style={{ display: 'flex', gap: '8px' }}>
                   <button 
                     onClick={() => removeBookmark(b.question_id)}
-                    style={{ padding: '6px 12px', background: 'white', color: '#0F172A', border: '1px solid rgba(15, 23, 42, 0.1)', borderRadius: '6px', cursor: 'pointer' }}
+                    style={{ padding: '8px 16px', background: 'transparent', color: '#EF4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s' }}
+                    onMouseOver={(e) => { e.currentTarget.style.background = '#FEF2F2'; }}
+                    onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; }}
                   >
                     O'chirish
                   </button>
                   <button 
                     onClick={() => onStartMistakeRetry([b.question_id])}
-                    style={{ padding: '6px 12px', background: 'rgba(37, 99, 235, 0.08)', color: '#2563EB', border: '1px solid rgba(37, 99, 235, 0.2)', borderRadius: '6px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    style={{ padding: '8px 16px', background: '#2563EB', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)' }}
+                    onMouseOver={(e) => { e.currentTarget.style.background = '#1D4ED8'; }}
+                    onMouseOut={(e) => { e.currentTarget.style.background = '#2563EB'; }}
                   >
-                    Ishlash
+                    <Play size={14} fill="currentColor" /> Ishlash
                   </button>
                 </div>
               </div>
 
+              {/* Question Text */}
+              <div style={{ margin: 0, color: '#0F172A', fontSize: '15px', lineHeight: '1.6', overflowX: 'auto' }}>
+                <MathText>{b.questions?.text}</MathText>
+              </div>
+
               {/* Notes Section */}
-              <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(15, 23, 42, 0.05)' }}>
+              <div style={{ paddingTop: '16px', borderTop: '1px solid rgba(15, 23, 42, 0.06)' }}>
                 {editingNote === b.question_id ? (
-                  <div>
+                  <div style={{ background: '#F8FAFC', padding: '16px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
                     <textarea
                       autoFocus
                       value={noteValue}
                       onChange={(e) => setNoteValue(e.target.value)}
                       placeholder={lang === 'uz' ? 'Eslatma matnini kiriting...' : 'Введите текст заметки...'}
-                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #2563EB', outline: 'none', resize: 'vertical', minHeight: '60px', marginBottom: '8px', fontSize: '14px' }}
+                      style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #CBD5E1', outline: 'none', resize: 'vertical', minHeight: '80px', marginBottom: '12px', fontSize: '14px', fontFamily: 'inherit' }}
                     />
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => saveNote(b.question_id)} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: '#2563EB', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
-                        <Save size={14} /> {lang === 'uz' ? 'Saqlash' : 'Сохранить'}
+                      <button onClick={() => saveNote(b.question_id)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: '#10B981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }}>
+                        <Save size={16} /> {lang === 'uz' ? 'Saqlash' : 'Сохранить'}
                       </button>
-                      <button onClick={() => setEditingNote(null)} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 12px', background: 'rgba(15, 23, 42, 0.05)', color: '#0F172A', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
-                        <X size={14} /> {lang === 'uz' ? 'Bekor qilish' : 'Отмена'}
+                      <button onClick={() => setEditingNote(null)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: 'transparent', color: '#64748B', border: '1px solid #CBD5E1', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }}>
+                        <X size={16} /> {lang === 'uz' ? 'Bekor qilish' : 'Отмена'}
                       </button>
                     </div>
                   </div>
                 ) : (
                   <div>
                     {b.note_text ? (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: 'rgba(245, 158, 11, 0.05)', padding: '12px', borderRadius: '8px', borderLeft: '3px solid #F59E0B' }}>
-                        <p style={{ margin: 0, fontSize: '14px', color: '#0F172A', whiteSpace: 'pre-wrap' }}>{b.note_text}</p>
-                        <button onClick={() => { setEditingNote(b.question_id); setNoteValue(b.note_text); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#F59E0B', padding: '4px' }}>
-                          <Edit3 size={16} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: '#F8FAFC', padding: '16px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                        <p style={{ margin: 0, fontSize: '14px', color: '#334155', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{b.note_text}</p>
+                        <button onClick={() => { setEditingNote(b.question_id); setNoteValue(b.note_text); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748B', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'color 0.2s' }} onMouseOver={(e) => e.currentTarget.style.color = '#2563EB'} onMouseOut={(e) => e.currentTarget.style.color = '#64748B'}>
+                          <Edit3 size={18} />
                         </button>
                       </div>
                     ) : (
                       <button 
                         onClick={() => { setEditingNote(b.question_id); setNoteValue(''); }}
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: 'none', color: '#64748B', fontSize: '13px', cursor: 'pointer', padding: 0 }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#F1F5F9', border: '1px dashed #CBD5E1', color: '#64748B', fontSize: '13px', fontWeight: 500, cursor: 'pointer', padding: '10px 16px', borderRadius: '8px', width: 'fit-content', transition: 'all 0.2s' }}
+                        onMouseOver={(e) => { e.currentTarget.style.background = '#E2E8F0'; e.currentTarget.style.color = '#334155'; }}
+                        onMouseOut={(e) => { e.currentTarget.style.background = '#F1F5F9'; e.currentTarget.style.color = '#64748B'; }}
                       >
                         <Edit3 size={14} /> {lang === 'uz' ? 'Eslatma qo\'shish' : 'Добавить заметку'}
                       </button>
