@@ -104,17 +104,22 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
           </div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', animation: 'slideUpFade 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards' }}>
           
           {/* Telegram Sign In Button */}
-          {/* Telegram Sign In Button */}
-          <TelegramLoginWidget
-            botName={import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'placeholder_bot'}
-            buttonSize="large"
-            cornerRadius={12}
-            lang={lang === 'ru' ? 'ru' : 'en'}
-            onAuthCallback={handleTelegramAuth}
-          />
+          <div className="telegram-widget-wrapper">
+            <TelegramLoginWidget
+              botName={import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'placeholder_bot'}
+              buttonSize="large"
+              cornerRadius={12}
+              lang={lang === 'ru' ? 'ru' : 'en'}
+              onAuthCallback={handleTelegramAuth}
+            />
+          </div>
+
+          <div className="auth-divider">
+            <span>{lang === 'ru' ? 'ИЛИ' : 'YOKI'}</span>
+          </div>
 
           {/* Google Sign In Button */}
           <button
