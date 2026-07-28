@@ -88,6 +88,32 @@ export default function App() {
     }
   };
 
+  // 0. Setup Hash-based Routing to support browser Back button
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      
+      if (hash === 'login') {
+        setAuthView(true);
+        setLegalPage(null);
+      } else if (hash.startsWith('legal-')) {
+        setLegalPage(hash.replace('legal-', ''));
+        setAuthView(false);
+      } else {
+        setAuthView(false);
+        setLegalPage(null);
+      }
+    };
+    
+    // Listen for hash changes
+    window.addEventListener('hashchange', handleHashChange);
+    
+    // Process initial hash on load
+    handleHashChange();
+
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
   useEffect(() => {
     // 1. Get current session on load
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -106,7 +132,7 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
         setIsRecoveryMode(true);
-        setAuthView(false);
+        window.location.hash = '';
       }
       
       if (session?.user) {
@@ -162,13 +188,13 @@ export default function App() {
   // Clicking "Testni Boshlash" navigates to Login / Register page
   const handleStartTestClick = (subjectId = 'uzbek') => {
     setPendingSubject(subjectId);
-    setAuthView(true);
+    window.location.hash = 'login';
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // After successful Auth, go to Workspace
   const handleAuthSuccess = (userData) => {
-    setAuthView(false);
+    window.location.hash = '';
     setUser(userData);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -201,7 +227,7 @@ export default function App() {
     }
 
     if (legalPage) {
-      return <LegalPage type={legalPage} onBack={() => setLegalPage(null)} />;
+      return <LegalPage type={legalPage} onBack={() => { window.location.hash = ''; }} />;
     }
 
     if (viewMode === 'exam') {
@@ -263,7 +289,7 @@ export default function App() {
       <AuthPage
         lang={lang}
         onAuthSuccess={handleAuthSuccess}
-        onBackToHome={() => setAuthView(false)}
+        onBackToHome={() => { window.location.hash = ''; }}
       />
     );
   }
@@ -271,7 +297,7 @@ export default function App() {
   // 3. Landing Page View (unauthenticated)
 
   if (legalPage) {
-    return <LegalPage type={legalPage} onBack={() => setLegalPage(null)} />;
+    return <LegalPage type={legalPage} onBack={() => { window.location.hash = ''; }} />;
   }
 
   return (
@@ -291,7 +317,7 @@ export default function App() {
         </main>
       </div>
 
-      <Footer lang={lang} onOpenLegal={(type) => setLegalPage(type)} />
+      <Footer lang={lang} onOpenLegal={(type) => { window.location.hash = `legal-${type}`; }} />
     </div>
   );
 }
