@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Bookmark, Play, Edit3, Save, X } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import MathText from '../../../components/MathText';
+import '../../ExamArena/ExamLayout.css';
 
 export default function BookmarksView({ lang, onStartMistakeRetry }) {
   const [bookmarks, setBookmarks] = useState([]);
@@ -67,9 +68,8 @@ export default function BookmarksView({ lang, onStartMistakeRetry }) {
         {bookmarks.length > 0 && (
           <button 
             onClick={() => onStartMistakeRetry(bookmarks.map(b => b.question_id))}
-            style={{ padding: '10px 20px', background: '#2563EB', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 500, fontSize: '14px', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)' }}
-            onMouseOver={(e) => { e.currentTarget.style.background = '#1D4ED8'; }}
-            onMouseOut={(e) => { e.currentTarget.style.background = '#2563EB'; }}
+            className="exam-btn-primary"
+            style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             <Play size={16} fill="currentColor" /> Barchasini ishlash
           </button>
@@ -96,17 +96,15 @@ export default function BookmarksView({ lang, onStartMistakeRetry }) {
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button 
                     onClick={() => removeBookmark(b.question_id)}
-                    style={{ padding: '8px 16px', background: 'transparent', color: '#EF4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s' }}
-                    onMouseOver={(e) => { e.currentTarget.style.background = '#FEF2F2'; }}
-                    onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                    className="exam-btn-outline"
+                    style={{ padding: '8px 16px' }}
                   >
                     O'chirish
                   </button>
                   <button 
                     onClick={() => onStartMistakeRetry([b.question_id])}
-                    style={{ padding: '8px 16px', background: '#2563EB', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)' }}
-                    onMouseOver={(e) => { e.currentTarget.style.background = '#1D4ED8'; }}
-                    onMouseOut={(e) => { e.currentTarget.style.background = '#2563EB'; }}
+                    className="exam-btn-primary"
+                    style={{ padding: '8px 16px' }}
                   >
                     <Play size={14} fill="currentColor" /> Ishlash
                   </button>
@@ -130,10 +128,10 @@ export default function BookmarksView({ lang, onStartMistakeRetry }) {
                       style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #CBD5E1', outline: 'none', resize: 'vertical', minHeight: '80px', marginBottom: '12px', fontSize: '14px', fontFamily: 'inherit' }}
                     />
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => saveNote(b.question_id)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: '#10B981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }}>
+                      <button onClick={() => saveNote(b.question_id)} className="exam-btn-primary" style={{ padding: '8px 16px' }}>
                         <Save size={16} /> {lang === 'uz' ? 'Saqlash' : 'Сохранить'}
                       </button>
-                      <button onClick={() => setEditingNote(null)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: 'transparent', color: '#64748B', border: '1px solid #CBD5E1', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }}>
+                      <button onClick={() => setEditingNote(null)} className="exam-btn-outline" style={{ padding: '8px 16px' }}>
                         <X size={16} /> {lang === 'uz' ? 'Bekor qilish' : 'Отмена'}
                       </button>
                     </div>
@@ -150,9 +148,8 @@ export default function BookmarksView({ lang, onStartMistakeRetry }) {
                     ) : (
                       <button 
                         onClick={() => { setEditingNote(b.question_id); setNoteValue(''); }}
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#F1F5F9', border: '1px dashed #CBD5E1', color: '#64748B', fontSize: '13px', fontWeight: 500, cursor: 'pointer', padding: '10px 16px', borderRadius: '8px', width: 'fit-content', transition: 'all 0.2s' }}
-                        onMouseOver={(e) => { e.currentTarget.style.background = '#E2E8F0'; e.currentTarget.style.color = '#334155'; }}
-                        onMouseOut={(e) => { e.currentTarget.style.background = '#F1F5F9'; e.currentTarget.style.color = '#64748B'; }}
+                        className="exam-btn-outline"
+                        style={{ padding: '8px 16px', background: '#F8FAFC', borderStyle: 'dashed' }}
                       >
                         <Edit3 size={14} /> {lang === 'uz' ? 'Eslatma qo\'shish' : 'Добавить заметку'}
                       </button>

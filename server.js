@@ -803,29 +803,18 @@ app.post('/api/start-practice', authMiddleware, apiLimiter, async (req, res) => 
       return res.status(400).json({ error: 'Too many questions (max 200)' });
     }
 
-    // Validate questionIds
+    // Validate questionIds (No need to check mock test status, users can practice any valid question they have bookmarked or attempted)
     const { data: validQs, error: validErr } = await supabaseAdmin
       .from('questions')
-      .select('id, test_id')
+      .select('id')
       .in('id', questionIds)
       .in('status', ['approved', 'published']);
 
     if (validErr || !validQs || validQs.length === 0) {
-       return res.status(400).json({ error: 'Invalid question IDs' });
+       return res.status(400).json({ error: 'Invalid question IDs or questions are not published' });
     }
 
-    const testIds = [...new Set(validQs.map(q => q.test_id))];
-    const { data: validTests } = await supabaseAdmin
-      .from('mock_tests')
-      .select('id')
-      .in('id', testIds);
-    
-    if (!validTests) return res.status(400).json({ error: 'Invalid test IDs' });
-    
-    const validTestIds = new Set(validTests.map(t => t.id));
-    const finalQids = validQs.filter(q => validTestIds.has(q.test_id)).map(q => q.id);
-
-    if (finalQids.length === 0) return res.status(400).json({ error: 'No valid questions found' });
+    const finalQids = validQs.map(q => q.id);
 
     // 2. Atomically Create Practice Session via RPC
     const userClient = getUserSupabase(req);
