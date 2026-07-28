@@ -3,11 +3,11 @@ import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import TelegramLoginWidget from '../../components/auth/TelegramLoginWidget';
 export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(null); // 'google', 'telegram', or null
   const [error, setError] = useState(null);
 
   const handleGoogleAuth = async () => {
-    setLoading(true);
+    setLoading('google');
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -15,12 +15,12 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
       if (error) throw error;
     } catch (err) {
       setError(err.message);
-      setLoading(false);
+      setLoading(null);
     }
   };
 
   const handleTelegramAuth = async (user) => {
-    setLoading(true);
+    setLoading('telegram');
     setError(null);
     try {
       // Send telegram user data to our backend for verification and session generation
@@ -58,7 +58,7 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
       console.error(err);
       setError(err.message);
     } finally {
-      setLoading(false);
+      setLoading(null);
     }
   };
 
@@ -107,7 +107,12 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', animation: 'slideUpFade 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards' }}>
           
           {/* Telegram Sign In Button */}
-          <div className="telegram-widget-wrapper">
+          <div className="telegram-widget-wrapper" style={{ opacity: loading !== null ? 0.7 : 1, pointerEvents: loading !== null ? 'none' : 'auto', position: 'relative' }}>
+            {loading === 'telegram' && (
+              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 10, background: 'rgba(255,255,255,0.8)', borderRadius: '50%', padding: '4px', display: 'flex' }}>
+                 <Loader2 size={24} className="animate-spin" color="#3390EC" />
+              </div>
+            )}
             <TelegramLoginWidget
               botName={import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'placeholder_bot'}
               buttonSize="large"
@@ -125,11 +130,11 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
           <button
             type="button"
             onClick={handleGoogleAuth}
-            disabled={loading}
+            disabled={loading !== null}
             className="btn-auth-google"
-            style={{ opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+            style={{ opacity: loading !== null ? 0.7 : 1, cursor: loading !== null ? 'not-allowed' : 'pointer' }}
           >
-            {loading ? (
+            {loading === 'google' ? (
               <Loader2 size={20} className="animate-spin" />
             ) : (
               <svg width="20" height="20" viewBox="0 0 24 24">
