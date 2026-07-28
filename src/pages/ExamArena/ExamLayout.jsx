@@ -1052,8 +1052,8 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
           {/* Grid Section for standard mode */}
           {!testInfo?.pdf_url && (
             <aside className="exam-right-panel">
-              <div className="exam-grid-header">
-                <h3 className="exam-grid-title">Savollar jadvali</h3>
+              <div className="exam-grid-header" style={{ padding: '24px 24px 0 24px' }}>
+                <h3 className="exam-grid-title" style={{ margin: '0' }}>Savollar jadvali</h3>
               </div>
               <div className="exam-timer-box">
                 <div className="timer-label">Qolgan vaqt</div>
