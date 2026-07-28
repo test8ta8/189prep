@@ -587,9 +587,14 @@
   flex: 1;
   overflow-y: auto;
 }
+
+.exam-grid-header {
+  padding: 24px 24px 0 24px;
+}
+
 .exam-grid-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   color: #0F172A;
   margin-bottom: 16px;
 }
