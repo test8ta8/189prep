@@ -9,14 +9,14 @@ import { createClient } from '@supabase/supabase-js';
 
 dotenv.config();
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder_key';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const supabaseAdmin = createClient(
-  process.env.VITE_SUPABASE_URL,
+const supabaseAdmin = process.env.SUPABASE_SECRET_KEY ? createClient(
+  supabaseUrl,
   process.env.SUPABASE_SECRET_KEY // SECURE: Uses Secret Key for backend admin tasks
-);
+) : supabase; // Fallback to normal client if no secret key (will fail admin tasks but won't crash boot)
 
 const getUserSupabase = (req) => {
   return createClient(supabaseUrl, supabaseKey, {
@@ -52,10 +52,10 @@ app.use(cors({
     const allowed = process.env.ALLOWED_ORIGIN ? process.env.ALLOWED_ORIGIN.split(',') : [];
     allowed.push('https://189prep.vercel.app', 'https://189prep.uz');
     
-    if (allowed.includes(origin) || origin.endsWith('.vercel.app')) {
+    if (allowed.includes(origin) || origin.endsWith('.vercel.app') || origin.endsWith('.189prep.uz') || origin === 'https://189prep.uz') {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(null, false); // Don't throw an error, just return false to let the browser block it
     }
   },
   optionsSuccessStatus: 200 
@@ -1169,6 +1169,17 @@ Student context: ${userContext ? JSON.stringify(userContext) : 'No context provi
     console.error("AI Tutor Error:", error);
     res.status(500).json({ error: 'Internal server error during AI Tutor response' });
   }
+});
+
+app.use((err, req, res, next) => {
+  console.error("Global Error Handler:", err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal Server Error',
+    type: 'server_error'
+  });
 });
 
 const PORT = process.env.PORT || 3001;
