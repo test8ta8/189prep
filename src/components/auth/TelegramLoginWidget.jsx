@@ -9,12 +9,18 @@ export default function TelegramLoginWidget({
   lang = 'en' 
 }) {
   const containerRef = useRef(null);
+  const callbackRef = useRef(onAuthCallback);
+
+  // Keep callback fresh without re-triggering script load
+  useEffect(() => {
+    callbackRef.current = onAuthCallback;
+  }, [onAuthCallback]);
 
   useEffect(() => {
     // 1. Define the global callback function
     window.onTelegramAuth = (user) => {
-      if (onAuthCallback) {
-        onAuthCallback(user);
+      if (callbackRef.current) {
+        callbackRef.current(user);
       }
     };
 
@@ -36,14 +42,13 @@ export default function TelegramLoginWidget({
       containerRef.current.appendChild(script);
     }
 
-    // Cleanup
+    // Cleanup ONLY if component unmounts
     return () => {
-      delete window.onTelegramAuth;
       if (containerRef.current) {
         containerRef.current.innerHTML = '';
       }
     };
-  }, [botName, buttonSize, cornerRadius, requestAccess, onAuthCallback, lang]);
+  }, [botName, buttonSize, cornerRadius, requestAccess, lang]);
 
   return (
     <div 

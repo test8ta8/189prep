@@ -165,7 +165,7 @@ app.post('/api/auth/telegram', apiLimiter, async (req, res) => {
 
       if (createError) {
         console.error("Error creating telegram user:", createError);
-        return res.status(500).json({ error: 'Failed to create user' });
+        return res.status(500).json({ error: `Foydalanuvchi yaratishda xatolik: ${createError.message}` });
       }
 
       const retrySignIn = await supabase.auth.signInWithPassword({
@@ -175,7 +175,7 @@ app.post('/api/auth/telegram', apiLimiter, async (req, res) => {
 
       if (retrySignIn.error) {
         console.error("Error signing in after creation:", retrySignIn.error);
-        return res.status(500).json({ error: 'Failed to sign in after creation' });
+        return res.status(500).json({ error: `Yaratilgandan so'ng kirishda xatolik: ${retrySignIn.error.message}` });
       }
       
       sessionData = retrySignIn.data;
