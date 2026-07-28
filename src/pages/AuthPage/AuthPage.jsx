@@ -107,10 +107,30 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', animation: 'slideUpFade 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards' }}>
           
           {/* Telegram Sign In Button */}
-          <div className="telegram-widget-wrapper" style={{ opacity: loading !== null ? 0.7 : 1, pointerEvents: loading !== null ? 'none' : 'auto', position: 'relative' }}>
+          <div className="telegram-widget-wrapper" style={{ opacity: loading !== null && loading !== 'telegram' ? 0.6 : 1, pointerEvents: loading !== null ? 'none' : 'auto', position: 'relative' }}>
             {loading === 'telegram' && (
-              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 10, background: 'rgba(255,255,255,0.8)', borderRadius: '50%', padding: '4px', display: 'flex' }}>
-                 <Loader2 size={24} className="animate-spin" color="#3390EC" />
+              <div style={{ 
+                position: 'absolute', 
+                inset: -2, // slightly larger to cover fully
+                zIndex: 10, 
+                background: 'rgba(255,255,255,0.4)', 
+                backdropFilter: 'blur(3px)',
+                WebkitBackdropFilter: 'blur(3px)',
+                borderRadius: '14px', 
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                animation: 'slideUpFade 0.2s ease-out'
+              }}>
+                 <div style={{ 
+                    background: '#3390EC', 
+                    borderRadius: '50%', 
+                    padding: '8px', 
+                    display: 'flex',
+                    boxShadow: '0 4px 12px rgba(51, 144, 236, 0.4)'
+                  }}>
+                   <Loader2 size={20} className="animate-spin" color="#FFF" />
+                 </div>
               </div>
             )}
             <TelegramLoginWidget
