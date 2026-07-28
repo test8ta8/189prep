@@ -30,7 +30,14 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
         body: JSON.stringify(user)
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error("Non-JSON response from server:", text);
+        throw new Error("Server API yangilanmagan. Iltimos server (backend) ni yangilang.");
+      }
       
       if (!res.ok) {
         throw new Error(data.error || 'Telegram orqali kirishda xatolik');
