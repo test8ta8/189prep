@@ -280,7 +280,10 @@ export default function MocksView({ lang, user, onStartExam, onNavigate }) {
                 onClick={() => {
                   if (isPremiumLocked) onNavigate('pricing');
                   else if (exam.id === 'alevel-virtual') setIsALevelModalOpen(true);
-                  else onStartExam(exam.id);
+                  else {
+                    window.sessionStorage.setItem('telemetry_start_click', performance.now());
+                    onStartExam(exam.id);
+                  }
                 }}
                 disabled={isTimeLocked}
                 className="btn-primary-workspace"

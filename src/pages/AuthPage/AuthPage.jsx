@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../../lib/routes';
 import { supabase } from '../../lib/supabase';
 import TelegramLoginWidget from '../../components/auth/TelegramLoginWidget';
-export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
+export default function AuthPage({ lang = 'uz', onAuthSuccess }) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(null); // 'google', 'telegram', or null
   const [error, setError] = useState(null);
 
@@ -66,7 +69,7 @@ export default function AuthPage({ lang = 'uz', onAuthSuccess, onBackToHome }) {
     <div className="auth-page-wrapper">
       {/* Back to Home Button */}
       <button
-        onClick={onBackToHome}
+        onClick={() => navigate(ROUTES.HOME)}
         className="auth-back-btn"
       >
         <ArrowLeft size={16} />

@@ -63,6 +63,7 @@
   transition: all 0.2s ease;
   white-space: nowrap;
   overflow: hidden;
+  text-decoration: none;
 }
 
 .workspace-sidebar.collapsed .sidebar-nav-item {
@@ -118,6 +119,7 @@
   transition: all 0.2s;
   white-space: nowrap;
   overflow: hidden;
+  text-decoration: none;
 }
 
 .workspace-sidebar.collapsed .sidebar-bottom-item {

@@ -3,11 +3,14 @@ import {
   FileText, HelpCircle, Calculator, Bookmark, LogOut,
   Moon, ChevronLeft, ChevronRight, CheckCircle, XCircle, ArrowLeft
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../../lib/routes';
 import { supabase } from '../../lib/supabase';
 import MathText from '../../components/MathText';
 import '../ExamArena/ExamLayout.css'; // Reuse existing styles
 
-export default function PracticeLayout({ user, config, retryIds, onExit }) {
+export default function PracticeLayout({ user, config, retryIds }) {
+  const navigate = useNavigate();
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sessionId, setSessionId] = useState(null);
@@ -242,7 +245,7 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
   const currentQ = questions[currentIndex];
   if (!currentQ) {
     return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.03)' }}>
-      Savollar topilmadi. <button onClick={onExit} style={{ marginLeft: '12px', color: 'blue' }}>Ortga</button>
+      Savollar topilmadi. <button onClick={() => navigate(ROUTES.DASHBOARD)} style={{ marginLeft: '12px', color: 'blue' }}>Ortga</button>
     </div>;
   }
 
@@ -278,7 +281,7 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
           </button>
         </nav>
         <div className="exam-sidebar-bottom">
-          <button className="exam-nav-item text-red" onClick={onExit} style={{ color: '#0F172A', width: '100%' }}>
+          <button className="exam-nav-item text-red" onClick={() => navigate(ROUTES.DASHBOARD)} style={{ color: '#0F172A', width: '100%' }}>
             <LogOut size={18} /> Chiqish
           </button>
         </div>
@@ -289,7 +292,7 @@ export default function PracticeLayout({ user, config, retryIds, onExit }) {
         {/* Header */}
         <header className="exam-header">
           <div className="exam-header-title" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <button onClick={onExit} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.04)', border: 'none', borderRadius: '8px', padding: '8px', cursor: 'pointer', color: '#0F172A' }} title="Bosh sahifaga qaytish">
+            <button onClick={() => navigate(ROUTES.DASHBOARD)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.04)', border: 'none', borderRadius: '8px', padding: '8px', cursor: 'pointer', color: '#0F172A' }} title="Bosh sahifaga qaytish">
               <ArrowLeft size={20} />
             </button>
             <span>{config?.subject || "Amaliyot"} <span className="exam-header-subtitle">| O'zlashtirish</span></span>

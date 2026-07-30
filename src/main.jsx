@@ -1,8 +1,10 @@
 import React, { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import 'katex/dist/katex.min.css'
 import App from './App.jsx'
+import ScrollToTop from './components/layout/ScrollToTop'
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -32,7 +34,10 @@ class ErrorBoundary extends React.Component {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
+      <BrowserRouter>
+        <ScrollToTop />
+        <App />
+      </BrowserRouter>
     </ErrorBoundary>
   </StrictMode>,
 )

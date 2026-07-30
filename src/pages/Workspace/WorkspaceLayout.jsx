@@ -1,5 +1,28 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import { Routes, Route, NavLink, useNavigate, Navigate } from 'react-router-dom';
+import { ROUTES } from '../../lib/routes';
+import { supabase } from '../../lib/supabase';
+import './Workspace.css';
 
+// Icons
+import { 
+  LayoutDashboard, 
+  FileText, 
+  TrendingUp, 
+  Bot, 
+  User, 
+  LogOut,
+  Menu,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ShieldAlert,
+  Bookmark,
+  ChevronDown,
+  Edit3
+} from 'lucide-react';
+
+// Flags
 const UzFlag = () => (
   <svg width="16" height="12" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ borderRadius: '2px', border: '1px solid rgba(0,0,0,0.1)' }}>
     <rect width="16" height="4" fill="#0099B5"/>
@@ -17,50 +40,32 @@ const RuFlag = () => (
     <rect y="8" width="16" height="4" fill="#E4181C"/>
   </svg>
 );
-import { 
-  LayoutDashboard, 
-  FileText, 
-  TrendingUp, 
-  Bot, 
-  CreditCard, 
-  User, 
-  LogOut,
-  Menu,
-  X,
-  Globe,
-  ChevronLeft,
-  ChevronRight,
-  ShieldAlert,
-  Settings2,
-  AlertTriangle,
-  Bookmark,
-  Calendar,
-  Moon,
-  Sun,
-  ChevronDown,
-  Edit3,
-  Crown
-} from 'lucide-react';
-import DashboardView from './views/DashboardView';
-import ProfileView from './views/ProfileView';
-import PricingView from './views/PricingView';
-import MocksView from './views/MocksView';
-import ProgressView from './views/ProgressView';
-import AiTutorView from './views/AiTutorView';
-import CustomTestSetupView from './views/CustomTestSetupView';
-import MistakesView from './views/MistakesView';
-import BookmarksView from './views/BookmarksView';
-import EssayReviewView from './views/EssayReviewView';
-import { supabase } from '../../lib/supabase';
-import './Workspace.css';
 
-export default function WorkspaceLayout({ user, lang, setLang, onLogout, isAdmin, onEnterAdmin, onStartExam, onStartMistakeRetry, onStartCustomExam }) {
-  const [activeView, setActiveView] = useState(() => {
-    const saved = localStorage.getItem('workspace_activeView');
-    return saved ? JSON.parse(saved) : 'dashboard';
-  });
+// Lazy Loaded Views
+const DashboardView = lazy(() => import('./views/DashboardView'));
+const ProfileView = lazy(() => import('./views/ProfileView'));
+const PricingView = lazy(() => import('./views/PricingView'));
+const MocksView = lazy(() => import('./views/MocksView'));
+const ProgressView = lazy(() => import('./views/ProgressView'));
+const AiTutorView = lazy(() => import('./views/AiTutorView'));
+const CustomTestSetupView = lazy(() => import('./views/CustomTestSetupView'));
+const MistakesView = lazy(() => import('./views/MistakesView'));
+const BookmarksView = lazy(() => import('./views/BookmarksView'));
+const EssayReviewView = lazy(() => import('./views/EssayReviewView'));
+const NotFoundPage = lazy(() => import('../NotFoundPage/NotFoundPage'));
 
-  useEffect(() => localStorage.setItem('workspace_activeView', JSON.stringify(activeView)), [activeView]);
+// Loader
+const ViewLoader = () => (
+  <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div className="spinner"></div>
+  </div>
+);
+
+export default function WorkspaceLayout({ 
+  user, lang, setLang, onLogout, isAdmin, 
+  onStartExam, onStartMistakeRetry, onStartCustomExam 
+}) {
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -140,68 +145,24 @@ export default function WorkspaceLayout({ user, lang, setLang, onLogout, isAdmin
     }
   }, []);
 
-  const toggleDarkMode = () => {
-    if (isDarkMode) {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-      setIsDarkMode(false);
-    } else {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-      setIsDarkMode(true);
-    }
-  };
-
-  const toggleLang = () => {
-    setLang(lang === 'uz' ? 'ru' : 'uz');
-  };
-
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
       onLogout();
     } catch (err) {
       console.error('Error logging out:', err);
-      // Fallback local logout
       onLogout();
     }
   };
 
   const navItems = [
-    { id: 'dashboard', icon: LayoutDashboard, labelUz: 'Bosh sahifa', labelRu: 'Главная' },
-    { id: 'mocks', icon: FileText, labelUz: 'Mocklar', labelRu: 'Моки' },
-    { id: 'bookmarks', icon: Bookmark, labelUz: 'Eslatmalar', labelRu: 'Закладки' },
-    { id: 'progress', icon: TrendingUp, labelUz: 'Progress', labelRu: 'Прогресс' },
-    { id: 'ai-tutor', icon: Bot, labelUz: 'AI ustoz', labelRu: 'ИИ-репетитор' },
-    { id: 'essay-review', icon: Edit3, labelUz: 'AI Esse', labelRu: 'ИИ Эссе' }
+    { path: ROUTES.DASHBOARD, icon: LayoutDashboard, labelUz: 'Bosh sahifa', labelRu: 'Главная' },
+    { path: ROUTES.MOCKS, icon: FileText, labelUz: 'Mocklar', labelRu: 'Моки' },
+    { path: ROUTES.BOOKMARKS, icon: Bookmark, labelUz: 'Eslatmalar', labelRu: 'Закладки' },
+    { path: ROUTES.PROGRESS, icon: TrendingUp, labelUz: 'Progress', labelRu: 'Прогресс' },
+    { path: ROUTES.AI_TUTOR, icon: Bot, labelUz: 'AI ustoz', labelRu: 'ИИ-репетитор' },
+    { path: ROUTES.ESSAY_REVIEW, icon: Edit3, labelUz: 'AI Esse', labelRu: 'ИИ Эссе' }
   ];
-
-  const renderActiveView = () => {
-    switch (activeView) {
-      case 'dashboard':
-        return <DashboardView lang={lang} user={user} onNavigate={setActiveView} stats={stats} />;
-      case 'mocks':
-        return <MocksView lang={lang} user={user} onStartExam={onStartExam} onNavigate={setActiveView} />;
-      case 'custom-test':
-        return <CustomTestSetupView lang={lang} onStartCustomTest={onStartCustomExam} />;
-      case 'mistakes':
-        return <MistakesView lang={lang} onStartMistakeRetry={onStartMistakeRetry} />;
-      case 'bookmarks':
-        return <BookmarksView lang={lang} onStartMistakeRetry={onStartMistakeRetry} />;
-      case 'progress':
-        return <ProgressView lang={lang} stats={stats} user={user} onNavigate={setActiveView} />;
-      case 'ai-tutor':
-        return <AiTutorView lang={lang} user={user} stats={stats} onNavigate={setActiveView} />;
-      case 'essay-review':
-        return <EssayReviewView lang={lang} user={user} />;
-      case 'pricing':
-        return <PricingView lang={lang} />;
-      case 'profile':
-        return <ProfileView lang={lang} user={user} isAdmin={isAdmin} />;
-      default:
-        return <DashboardView lang={lang} user={user} onNavigate={setActiveView} stats={stats} />;
-    }
-  };
 
   return (
     <div className="workspace-container">
@@ -210,7 +171,7 @@ export default function WorkspaceLayout({ user, lang, setLang, onLogout, isAdmin
         <div 
           className="minimal-brand" 
           style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
-          onClick={() => { setActiveView('dashboard'); setIsMobileMenuOpen(false); }}
+          onClick={() => { navigate(ROUTES.DASHBOARD); setIsMobileMenuOpen(false); }}
         >
           <img 
             src="/logo-189.png" 
@@ -232,7 +193,7 @@ export default function WorkspaceLayout({ user, lang, setLang, onLogout, isAdmin
           <div 
             className="minimal-brand" 
             style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: isCollapsed ? '0 0 24px 0' : '0 12px 24px 12px', cursor: 'pointer', justifyContent: isCollapsed ? 'center' : 'flex-start' }}
-            onClick={() => setActiveView('dashboard')}
+            onClick={() => navigate(ROUTES.DASHBOARD)}
           >
             <img 
               src="/logo-189.png" 
@@ -248,39 +209,39 @@ export default function WorkspaceLayout({ user, lang, setLang, onLogout, isAdmin
 
           <nav className="sidebar-nav">
             {navItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setActiveView(item.id);
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`sidebar-nav-item ${activeView === item.id ? 'active' : ''}`}
+              <NavLink
+                key={item.path}
+                to={item.path}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={({ isActive }) => `sidebar-nav-item ${isActive ? 'active' : ''}`}
                 title={isCollapsed ? (lang === 'uz' ? item.labelUz : item.labelRu) : ''}
               >
                 <item.icon size={20} className="nav-icon" />
                 {!isCollapsed && <span>{lang === 'uz' ? item.labelUz : item.labelRu}</span>}
-              </button>
+              </NavLink>
             ))}
           </nav>
         </div>
 
         <div className="sidebar-bottom">
           {/* Profile Button */}
-          <button 
-            onClick={() => {
-              setActiveView('profile');
-              setIsMobileMenuOpen(false);
-            }} 
-            className={`sidebar-bottom-item ${activeView === 'profile' ? 'active-bottom' : ''}`}
-            style={{ 
-              background: activeView === 'profile' ? '#0F172A' : 'transparent',
-              color: activeView === 'profile' ? '#FFFFFF' : '#0F172A',
-            }}
+          <NavLink
+            to={ROUTES.PROFILE}
+            onClick={() => setIsMobileMenuOpen(false)}
+            className={({ isActive }) => `sidebar-bottom-item ${isActive ? 'active-bottom' : ''}`}
+            style={({ isActive }) => ({
+              background: isActive ? '#0F172A' : 'transparent',
+              color: isActive ? '#FFFFFF' : '#0F172A',
+            })}
             title={isCollapsed ? (lang === 'uz' ? 'Profil' : 'Профиль') : ''}
           >
-            <User size={18} className="nav-icon" style={{ opacity: activeView === 'profile' ? 1 : 0.8 }} />
-            {!isCollapsed && <span>{lang === 'uz' ? 'Profil' : 'Профиль'}</span>}
-          </button>
+            {({ isActive }) => (
+              <>
+                <User size={18} className="nav-icon" style={{ opacity: isActive ? 1 : 0.8 }} />
+                {!isCollapsed && <span>{lang === 'uz' ? 'Profil' : 'Профиль'}</span>}
+              </>
+            )}
+          </NavLink>
 
           {/* Language Switcher */}
           <div ref={langRef} style={{ position: 'relative', width: '100%' }}>
@@ -313,21 +274,18 @@ export default function WorkspaceLayout({ user, lang, setLang, onLogout, isAdmin
               </div>
             )}
           </div>
-          
 
           {/* Admin Switch Button */}
           {isAdmin && (
-            <>
-              <button 
-                onClick={onEnterAdmin} 
-                className="sidebar-bottom-item"
-                style={{ color: '#2563eb', marginBottom: '8px' }}
-                title={isCollapsed ? "Admin Panel" : ""}
-              >
-                <ShieldAlert size={18} className="nav-icon" />
-                {!isCollapsed && <span>{lang === 'uz' ? 'Admin Panel' : 'Админ Панель'}</span>}
-              </button>
-            </>
+            <button 
+              onClick={() => navigate(ROUTES.ADMIN)} 
+              className="sidebar-bottom-item"
+              style={{ color: '#2563eb', marginBottom: '8px' }}
+              title={isCollapsed ? "Admin Panel" : ""}
+            >
+              <ShieldAlert size={18} className="nav-icon" />
+              {!isCollapsed && <span>{lang === 'uz' ? 'Admin Panel' : 'Админ Панель'}</span>}
+            </button>
           )}
 
           {/* Logout */}
@@ -345,7 +303,42 @@ export default function WorkspaceLayout({ user, lang, setLang, onLogout, isAdmin
 
       {/* Main Workspace Area */}
       <main className="workspace-main">
-        {renderActiveView()}
+        <Suspense fallback={<ViewLoader />}>
+          <Routes>
+            <Route path={ROUTES.DASHBOARD} element={
+              <DashboardView lang={lang} user={user} onNavigate={(path) => navigate(`/${path}`)} stats={stats} />
+            } />
+            <Route path={ROUTES.MOCKS} element={
+              <MocksView lang={lang} user={user} onStartExam={onStartExam} onNavigate={(path) => navigate(`/${path}`)} />
+            } />
+            <Route path={ROUTES.CUSTOM_TEST} element={
+              <CustomTestSetupView lang={lang} onStartCustomTest={onStartCustomExam} />
+            } />
+            <Route path={ROUTES.MISTAKES} element={
+              <MistakesView lang={lang} onStartMistakeRetry={onStartMistakeRetry} />
+            } />
+            <Route path={ROUTES.BOOKMARKS} element={
+              <BookmarksView lang={lang} onStartMistakeRetry={onStartMistakeRetry} />
+            } />
+            <Route path={ROUTES.PROGRESS} element={
+              <ProgressView lang={lang} stats={stats} user={user} onNavigate={(path) => navigate(`/${path}`)} />
+            } />
+            <Route path={ROUTES.AI_TUTOR} element={
+              <AiTutorView lang={lang} user={user} stats={stats} onNavigate={(path) => navigate(`/${path}`)} />
+            } />
+            <Route path={ROUTES.ESSAY_REVIEW} element={
+              <EssayReviewView lang={lang} user={user} />
+            } />
+            <Route path={ROUTES.PRICING} element={
+              <PricingView lang={lang} />
+            } />
+            <Route path={ROUTES.PROFILE} element={
+              <ProfileView lang={lang} user={user} isAdmin={isAdmin} />
+            } />
+            <Route path="/" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+            <Route path="*" element={<NotFoundPage lang={lang} />} />
+          </Routes>
+        </Suspense>
       </main>
       
       {/* Overlay for mobile */}

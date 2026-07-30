@@ -2,11 +2,22 @@ import React, { useEffect, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { Award, Trophy, CheckCircle2, XCircle, RotateCcw, Share2, BarChart3, Clock, Target, Home, FileCheck } from 'lucide-react';
 import MathText from '../MathText';
-import CertificateModal from './CertificateModal';
 
+const CertificateModal = React.lazy(() => import('./CertificateModal'));
 export default function ScoreReportModal({ result, onRestart, onExit, user }) {
   const [filter, setFilter] = useState('all');
   const [showCertificate, setShowCertificate] = useState(false);
+  
+  const [certId] = useState(() => {
+    const sId = result?.sessionId;
+    if (!sId) return `189-${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`;
+    let hash = 0;
+    for (let i = 0; i < sId.length; i++) {
+      hash = ((hash << 5) - hash) + sId.charCodeAt(i);
+      hash = hash & hash;
+    }
+    return `189-${Math.abs(hash) % 1000000}`.padEnd(10, '0').slice(0, 10);
+  });
 
   useEffect(() => {
     confetti({
@@ -202,13 +213,18 @@ export default function ScoreReportModal({ result, onRestart, onExit, user }) {
           </div>
         </div>
 
-        <CertificateModal 
-          isOpen={showCertificate} 
-          onClose={() => setShowCertificate(false)} 
-          result={result} 
-          user={user}
-          grade={level.grade}
-        />
+        {showCertificate && (
+          <React.Suspense fallback={<div style={{position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', color: 'white'}}>Sertifikat yuklanmoqda...</div>}>
+            <CertificateModal 
+              isOpen={showCertificate} 
+              onClose={() => setShowCertificate(false)} 
+              result={result} 
+              user={user}
+              grade={level.grade}
+              certId={certId}
+            />
+          </React.Suspense>
+        )}
 
         {/* Question Review Section */}
         <div style={{ marginTop: '16px' }}>

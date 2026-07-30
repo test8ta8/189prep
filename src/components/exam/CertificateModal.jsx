@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Trophy, Star, BarChart, FileCheck, Calendar, ShieldCheck, Download } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
-export default function CertificateModal({ isOpen, onClose, result, user, grade }) {
+export default function CertificateModal({ isOpen, onClose, result, user, grade, certId }) {
   const certificateRef = useRef(null);
   const containerRef = useRef(null);
   const [scale, setScale] = useState(1);
@@ -74,7 +74,6 @@ export default function CertificateModal({ isOpen, onClose, result, user, grade 
   const displayGrade = grade === 'Fail' ? 'Tavsiya etilmadi' : grade;
 
   const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  const certId = `189-${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`;
 
   return createPortal(
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>

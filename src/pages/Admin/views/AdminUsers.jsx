@@ -32,7 +32,7 @@ export default function AdminUsers() {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .order('role', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       setUsers(data || []);
@@ -249,7 +249,7 @@ export default function AdminUsers() {
                   const planStyle = getPlanBadgeColor(u.subscription_tier || 'free');
                   return (
                   <tr key={u.id}>
-                    <td className="uuid-cell" title={u.id}>{u.id.substring(0,8)}...</td>
+                    <td className="uuid-cell" style={{ fontSize: '12px', fontFamily: 'monospace', wordBreak: 'break-all', minWidth: '200px' }} title={u.id}>{u.id}</td>
                     <td style={{ fontWeight: 600, color: u.is_suspended ? 'rgba(15, 23, 42, 0.5)' : '#0F172A', textDecoration: u.is_suspended ? 'line-through' : 'none' }}>
                       {u.full_name || 'Kiritilmagan'}
                       <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#64748B', marginTop: '4px' }}>

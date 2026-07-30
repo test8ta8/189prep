@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, Users, BookOpen, Settings, LogOut, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../../lib/routes';
 import AdminDashboard from './views/AdminDashboard';
 import AdminUsers from './views/AdminUsers';
 import AdminTests from './views/AdminTests';
@@ -12,7 +14,8 @@ import AdminSecurity from './views/AdminSecurity';
 import { BarChart2, Bell, Shield, FileText, List } from 'lucide-react';
 import './Admin.css';
 
-export default function AdminLayout({ user, onLogout, onExitAdmin }) {
+export default function AdminLayout({ user, onLogout }) {
+  const navigate = useNavigate();
   const [activeView, setActiveView] = useState(() => {
     const saved = localStorage.getItem('admin_activeView');
     return saved ? JSON.parse(saved) : 'dashboard';
@@ -56,7 +59,7 @@ export default function AdminLayout({ user, onLogout, onExitAdmin }) {
         </div>
 
         <div className="admin-sidebar-bottom">
-          <button onClick={onExitAdmin} className="admin-nav-item">
+          <button onClick={() => navigate(ROUTES.DASHBOARD)} className="admin-nav-item">
             <ArrowLeft size={20} />
             <span>Workspace'ga qaytish</span>
           </button>

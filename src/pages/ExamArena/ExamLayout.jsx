@@ -4,13 +4,16 @@ import {
   ChevronLeft, ChevronRight, Pause, Flag, ShieldAlert, HeadphonesIcon, ArrowLeft,
   PanelLeftClose, PanelLeftOpen, Clock, AlertCircle
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../../lib/routes';
 import { supabase } from '../../lib/supabase';
 import HighlightableText from '../../components/exam/HighlightableText';
 import ScoreReportModal from '../../components/exam/ScoreReportModal';
 import MathText from '../../components/MathText';
 import './ExamLayout.css';
 
-export default function ExamLayout({ user, testId, customConfig, onExit }) {
+export default function ExamLayout({ user, testId, customConfig }) {
+  const navigate = useNavigate();
   const [questions, setQuestions] = useState([]);
   const [testInfo, setTestInfo] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -57,21 +60,24 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
         setLoading(true);
 
         // Check if there's a recovered result from a page refresh
-        const recoveredStr = localStorage.getItem('recovered_exam_result');
-        if (recoveredStr) {
-          try {
-            const recovered = JSON.parse(recoveredStr);
-            if (recovered.subject.id === testId || (customConfig && recovered.subject.id === null)) {
-              if (ignore) return;
-              setExamResult(recovered);
-              setLoading(false);
-              localStorage.removeItem('recovered_exam_result');
-              return;
-            }
-          } catch (e) {
-            // ignore
-          }
+        const skipRecovery = sessionStorage.getItem('skip_result_recovery');
+        if (skipRecovery) {
+          sessionStorage.removeItem('skip_result_recovery');
           localStorage.removeItem('recovered_exam_result');
+        } else {
+          const recoveredStr = localStorage.getItem('recovered_exam_result');
+          if (recoveredStr) {
+            try {
+              const recovered = JSON.parse(recoveredStr);
+              if (recovered.subject.id === testId || (customConfig && recovered.subject.id === null)) {
+                if (ignore) return;
+                setExamResult(recovered);
+                setLoading(false);
+                return; // Keep it in localStorage so refreshing the results page works
+              }
+            } catch (e) {}
+            localStorage.removeItem('recovered_exam_result'); // Invalid data, remove it
+          }
         }
 
         if (customConfig && customConfig.isALevel) {
@@ -684,7 +690,7 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
         <div className="exam-error">
             <h2>Savollar topilmadi</h2>
             <p>{testInfo?.error ? `Xato: ${testInfo.error}` : 'Ushbu test uchun hali savollar kiritilmagan yoki yuklashda xatolik yuz berdi.'}</p>
-            <button onClick={onExit} className="btn-primary">Orqaga qaytish</button>
+            <button onClick={() => navigate(ROUTES.DASHBOARD)} className="btn-primary">Orqaga qaytish</button>
         </div>
       </div>
     );
@@ -694,8 +700,14 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
     return (
       <ScoreReportModal
         result={examResult}
-        onRestart={onExit} // Go back to workspace
-        onExit={onExit}
+        onRestart={() => {
+          sessionStorage.setItem('skip_result_recovery', 'true');
+          window.location.reload();
+        }}
+        onExit={() => {
+          localStorage.removeItem('recovered_exam_result');
+          navigate(ROUTES.DASHBOARD);
+        }}
         user={user}
       />
     );
@@ -746,7 +758,15 @@ export default function ExamLayout({ user, testId, customConfig, onExit }) {
           </button>
         </nav>
         <div className="exam-sidebar-bottom">
-          <button className="exam-nav-item text-red" onClick={onExit} style={{ color: '#0F172A', width: '100%' }} title={isSidebarCollapsed ? 'Chiqish' : ''}>
+          <button 
+            className="exam-nav-item text-red" 
+            onClick={() => {
+              localStorage.removeItem('recovered_exam_state');
+              navigate(ROUTES.DASHBOARD);
+            }} 
+            style={{ color: '#0F172A', width: '100%' }} 
+            title={isSidebarCollapsed ? 'Chiqish' : ''}
+          >
             <LogOut size={18} /> {!isSidebarCollapsed && 'Chiqish'}
           </button>
         </div>
