@@ -1333,6 +1333,14 @@ html {
   justify-content: center;
 }
 
+.telegram-widget-wrapper iframe {
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  background-color: transparent !important;
+  border: none !important;
+  color-scheme: light !important;
+}
+
 .telegram-widget-wrapper:hover {
   transform: translateY(-2px);
   filter: drop-shadow(0 4px 8px rgba(51, 144, 236, 0.25));
